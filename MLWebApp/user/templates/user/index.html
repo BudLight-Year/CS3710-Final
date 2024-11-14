@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Account | Brew Trade Hub{% endblock %}
+
+{% block content %}
+
+    <h1>{{ user.username }}</h1>
+    <p>{{ user.description }}</p>
+    <p>{{ unread_notifications_count }}</p>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="list-group">
+                <a href="{% url 'user:index' %}" class="list-group-item list-group-item-action active">My Account</a>
+                <a href="{% url 'index' %}" class="list-group-item list-group-item-action">
+                    Notifications
+                    {% if unread_notifications_count > 0 %}
+                        <span class="badge" style="background-color: red; color: white;">{{ unread_notifications_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{% url 'index' %}" class="list-group-item list-group-item-action">My Listings</a>
+                <a href="{% url 'user:profile' user.username  %}" class="list-group-item list-group-item-action">My Profile</a>
+                <a href="{% url 'index' %}" class="list-group-item list-group-item-action">Messages</a>
+                <a href="{% url 'user:update_account' %}" class="list-group-item list-group-item-action">Update Account</a>
+                <a href="{% url 'user:account_change_password' %}" class="list-group-item list-group-item-action">Change Password</a>
+                <a href="{% url 'index' %}" class="list-group-item list-group-item-action">Contact Us</a>
+                <a href="{% url 'user:account_logout' %}" class="list-group-item list-group-item-action list-group-item-danger">Sign Out</a>
+            </div>
+        </div>
+        <div class="col-md-8">
+            XXX
+        </div>
+    </div>
+
+{% endblock %}

@@ -1,0 +1,74 @@
+<style>
+
+    /* Add this to your CSS file or within a <style> tag in your HTML */
+/* Add this to your CSS file or within a <style> tag in your HTML */
+    .navbar-custom {
+        background-color: #360167; /* Replace with your desired background color */
+        color: #0bc9d3; /* Replace with your desired text color */
+    }
+
+    .navbar-custom .nav-link,
+    .navbar-custom .navbar-brand,
+    .navbar-custom .nav-item .nav-link,
+    .navbar-custom .navbar-toggler-icon,
+    .navbar-custom .dropdown-item {
+        color: #0bc9d3; /* Replace with your desired text color */
+    }
+
+
+</style>
+<nav class="navbar navbar-expand-lg navbar-custom" data-bs-theme="dark">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'index' %}">Smart Movie Recommendations</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01"
+            aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}"
+                        href="{% url 'index' %}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == '/' %}active{% endif %}"
+                        href="{% url 'index' %}">Marketplace</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link blurred {% if request.resolver_match.url_name == '/' %}active{% endif %}"
+                        href="{% url 'index' %}">Discussions</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link blurred {% if request.resolver_match.url_name == '/' %}active{% endif %}"
+                        href="{% url 'index' %}">News & Events</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}"
+                        href="{% url 'about' %}">About</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                {% if user.is_authenticated %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button"
+                        aria-haspopup="true" aria-expanded="false">{{ user.username }}</a>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <a class="dropdown-item" href="{% url 'user:index' %}">My Account</a>
+                        <a class="dropdown-item" href="{% url 'index' %}">Messages</a>
+                        <a class="dropdown-item" href="{% url 'user:account_logout' %}">Sign Out</a>
+                    </div>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'user:account_login' %}active{% endif %}"
+                        href="{% url 'user:account_login' %}">Login</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'user:account_signup' %}active{% endif %}"
+                        href="{% url 'user:account_signup' %}">Sign Up</a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

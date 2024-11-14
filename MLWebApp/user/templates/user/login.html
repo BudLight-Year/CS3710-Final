@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Login | Brew Trade Hub{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+    <div class="col-md-6">
+        <h1>Login</h1>
+        Don't have an account? <a href="">Sign up here</a>.<br>
+        <form method="post" class="my-3">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+
+        <a href="{% url 'user:password_reset' %}">Forgot password?</a>
+    </div>
+</div>
+{% endblock %}

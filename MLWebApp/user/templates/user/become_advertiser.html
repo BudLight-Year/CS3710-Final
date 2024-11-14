@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Become an Advertiser | Brew Trade Hub
+{% endblock %}
+
+{% block content %}
+    {% if request.user.is_advertiser %}
+    <h1>You are already an advertiser</h1>
+    {% else %}
+    <h1>Become an Advertiser</h1>
+    <p>Please note that this change is permanent and will affect your account in different components of the website.</p>
+    <p>To become an advertiser please type "yes" into the box below.</p>
+    <form method="post" id="advertiserForm">
+        {% csrf_token %}
+        {{ form.as_p }}
+        {% if form.errors %}
+            <p>{{ form.errors }}</p>
+        {% endif %}
+        <button type="submit">Confirm</button>
+    </form>
+
+    <script>
+        document.getElementById('advertiserForm').addEventListener('submit', function(e) {
+            if (!confirm('Are you sure you want to become an advertiser? This change is permanent.')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+    {% endif %}
+{% endblock %}

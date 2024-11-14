@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>{{ object.username }}'s Profile</h2>
+  <p>Email: {{ object.email }}</p>
+  <p>Username: {{ object.username }}</p>
+  <p>Active: {{ object.is_active }}</p>
+  <p>Date Joined: {{ object.date_joined }}</p>
+  <p>Description: {{ object.description }}</p>
+  {% if user.is_authenticated and user != object %}
+    <a href="{% url 'index' object.username %}">
+      <button type="button">Message User</button>
+    </a>
+  {% else %}
+    <a href="{% url 'user:update_profile' %}">
+      <button type="button">Update Profile</button>
+    </a>
+  {% endif %}
+{% endblock %}
