@@ -62,6 +62,7 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             raise
 
     def prepare_genre_preferences(self, preference):
+        """Prepare genre preferences with correct shape"""
         # Create a zero array for all genres
         genre_preferences = np.zeros(len(GENRE_CHOICES))
         
@@ -76,7 +77,7 @@ class RecommendationEngineView(LoginRequiredMixin, View):
         
         # Remove None, empty values or empty strings
         selected_genres = [g for g in selected_genres if g and g.strip()]
-        print(f"Selected genres: {selected_genres}")
+        print(f"\nSelected genres: {selected_genres}")
         
         # Set 1 for selected genres using the correct index
         for genre in selected_genres:
@@ -92,12 +93,21 @@ class RecommendationEngineView(LoginRequiredMixin, View):
         if not preference.include_other_genres:
             genre_preferences = np.where(genre_preferences == 0, -1, genre_preferences)
             
+        print("\nGenre preferences array shape:", genre_preferences.shape)
         print("Generated genre preferences array:", genre_preferences)
         print("Genres with preference 1:", [GENRE_CHOICES[i] for i in range(len(genre_preferences)) if genre_preferences[i] == 1])
+        
+        # Ensure shape is 1D array of length num_genres
+        genre_preferences = genre_preferences.astype(np.float32)
+        assert len(genre_preferences.shape) == 1, "Genre preferences should be 1D array"
+        assert genre_preferences.shape[0] == len(GENRE_CHOICES), f"Expected {len(GENRE_CHOICES)} genres, got {genre_preferences.shape[0]}"
+        
         return genre_preferences, selected_genres
 
     def get_recommendations(self, genre_preferences, top_k=10, min_ratings=50):
-        """Exact implementation from training script"""
+        """Exact implementation from training script with shape verification"""
+        print("\nStarting recommendation generation...")
+        
         # Filter movies with minimum number of ratings
         popular_movies = self.movies_df[self.movies_df['count'] >= min_ratings].copy()
         
@@ -105,17 +115,30 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             print("No movies found with minimum rating count. Reducing minimum ratings requirement.")
             popular_movies = self.movies_df[self.movies_df['count'] > 0].copy()
         
-        # Get model predictions
+        # Verify shapes before creating features
+        print("\nShape information:")
+        print(f"Number of movies being processed: {len(popular_movies)}")
+        print(f"Genre preferences shape: {genre_preferences.shape}")
+        
+        # Create features tensor with explicit shapes
+        genre_preferences_expanded = tf.repeat(
+            tf.convert_to_tensor([genre_preferences], dtype=tf.float32),
+            repeats=[len(popular_movies)],
+            axis=0
+        )
+        
         features = {
             'movieId': tf.constant(popular_movies['movie_id'].values),
-            'genre_preferences': tf.repeat(
-                tf.convert_to_tensor([genre_preferences], dtype=tf.float32),
-                repeats=[len(popular_movies)],
-                axis=0
-            )
+            'genre_preferences': genre_preferences_expanded
         }
         
+        # Verify feature shapes
+        print("\nFeature shapes:")
+        print(f"movieId shape: {features['movieId'].shape}")
+        print(f"genre_preferences shape: {features['genre_preferences'].shape}")
+        
         predicted_scores = self.model(features)
+        print(f"Predicted scores shape: {predicted_scores.shape}")
         
         # Create preference boost scores exactly as in training
         preference_scores = np.zeros(len(popular_movies))
@@ -123,8 +146,10 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             genre_name = GENRE_CHOICES[idx]
             if pref == 1:  # Preferred genres get a boost
                 preference_scores += popular_movies[genre_name].values * 0.5
+                print(f"Boosting scores for {genre_name}")
             elif pref == -1:  # Avoided genres get a penalty
                 preference_scores -= popular_movies[genre_name].values * 1.0
+                print(f"Penalizing scores for {genre_name}")
         
         # Normalize preference scores to 0-1 range
         if np.ptp(preference_scores) > 0:
@@ -148,12 +173,21 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             0.3 * preference_scores               # Genre preferences
         )
         
+        print("\nScore components:")
+        print(f"Model predictions range: {tf.reduce_min(predicted_scores):.3f} to {tf.reduce_max(predicted_scores):.3f}")
+        print(f"Avg ratings range: {tf.reduce_min(avg_ratings_normalized):.3f} to {tf.reduce_max(avg_ratings_normalized):.3f}")
+        print(f"Preference scores range: {tf.reduce_min(preference_scores):.3f} to {tf.reduce_max(preference_scores):.3f}")
+        print(f"Final scores range: {tf.reduce_min(final_scores):.3f} to {tf.reduce_max(final_scores):.3f}")
+        
         # Create and apply avoidance mask for explicitly avoided genres
         avoid_mask = np.ones(len(popular_movies), dtype=bool)
         for idx, pref in enumerate(genre_preferences):
             if pref == -1:
                 genre_name = GENRE_CHOICES[idx]
                 avoid_mask = avoid_mask & (popular_movies[genre_name] == 0)
+                print(f"Creating avoidance mask for {genre_name}")
+        
+        print(f"\nMovies remaining after avoidance mask: {np.sum(avoid_mask)}")
         
         final_scores = tf.where(
             tf.constant(avoid_mask),
@@ -167,8 +201,18 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             print("No movies found matching the avoidance criteria")
             return None
         
+        print(f"\nSelecting top {k} movies...")
+        
         _, indices = tf.math.top_k(final_scores, k=k)
-        return popular_movies.iloc[indices.numpy()]
+        recommended_movies = popular_movies.iloc[indices.numpy()]
+        
+        print("\nRecommended movies:")
+        for _, movie in recommended_movies.iterrows():
+            print(f"{movie['title']}: Score={final_scores[indices[0]].numpy():.3f}, "
+                  f"Rating={movie['mean']:.1f} ({int(movie['count'])} ratings), "
+                  f"Genres={movie['genres']}")
+        
+        return recommended_movies
 
     def get(self, request):
         form = PreferenceForm()
