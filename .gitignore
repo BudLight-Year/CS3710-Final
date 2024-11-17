@@ -170,3 +170,5 @@ cython_debug/
 
 # Protect env vars
 .env
+
+*.csv
