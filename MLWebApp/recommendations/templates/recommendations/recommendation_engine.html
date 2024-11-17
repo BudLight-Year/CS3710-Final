@@ -7,6 +7,11 @@
     <h2>Explanation of how to work engine</h2>
 </div>
 
-
+<h1>Create Preference</h1> 
+<form method="post"> 
+    {% csrf_token %} 
+    {{ form.as_p }} 
+    <button type="submit">Submit</button> 
+</form>
 
 {% endblock %}

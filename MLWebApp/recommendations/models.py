@@ -26,6 +26,7 @@ class Preference(models.Model):
     genre3 = models.CharField(max_length=255, blank=True, null=True)
     genre4 = models.CharField(max_length=255, blank=True, null=True)
     genre5 = models.CharField(max_length=255, blank=True, null=True)
+    include_other_genres = models.BooleanField(default=False)
 
 
 
