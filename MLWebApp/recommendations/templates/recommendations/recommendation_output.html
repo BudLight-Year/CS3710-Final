@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Recommendation Output</h3>
+
+<h2>Recommendation for {{ recommendation.user.username }}</h1>
+<p>Preference ID: {{ recommendation.preference.id }}</p>
+<h2>Recommended Movies:</h2>
+<ul>
+    {% for movie in recommendation.movies.all %}
+        <li>{{ movie.title }} ({{ movie.genres }})</li>
+    {% endfor %}
+</ul>
+
+
+{% endblock %}

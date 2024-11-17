@@ -1,0 +1,231 @@
+from django.contrib.auth.mixins import  LoginRequiredMixin
+from django.shortcuts import render, redirect
+from django.http import HttpResponse
+from django.views import View
+from .forms import PreferenceForm
+from keras.models import load_model
+import tensorflow as tf
+import numpy as np
+import os
+from .models import Movie, MovieGenreModel, Recommendation
+import pandas as pd
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load the Keras model (relative path) 
+model_path = os.path.join(os.path.dirname(__file__), 'genreModel.keras')
+
+try:
+    model = load_model(
+        model_path, 
+        custom_objects={'MovieGenreModel': MovieGenreModel}
+    )
+except Exception as e:
+    print(f"Error loading model: {e}")
+    raise
+
+
+print("Model structure:")
+model.summary()
+
+GENRE_CHOICES = [
+    'Action', 'Adventure', 'Animation', 'Children', 'Comedy',
+    'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir',
+    'Horror', 'IMAX', 'Musical', 'Mystery', 'Romance', 'Sci-Fi',
+    'Thriller', 'War', 'Western'
+]
+
+class RecommendationEngineView(LoginRequiredMixin, View):
+    def get(self, request):
+        form = PreferenceForm()
+        return render(request, 'recommendations/recommendation_engine.html', {'form': form})
+
+    def post(self, request):
+        form = PreferenceForm(request.POST)
+        if form.is_valid():
+            preference = form.save(commit=False)
+            genre_preferences = self.prepare_genre_preferences(preference)
+            
+            try:
+                # Load movies for prediction
+                movies_df = pd.read_csv('recommendations/movies.csv')
+                movie_ids = movies_df['movieId'].astype(str).values
+                
+                # Create batch input for all movies
+                model_input = {
+                    'movieId': tf.constant(movie_ids),
+                    'genre_preferences': tf.repeat(
+                        tf.constant([genre_preferences], dtype=tf.float32),
+                        repeats=[len(movie_ids)],
+                        axis=0
+                    )
+                }
+
+                # Get predictions for all movies
+                predictions = model.predict(model_input)
+                
+                # Get top 10 movie indices
+                top_indices = np.argsort(predictions.flatten())[-10:][::-1]
+                recommended_movie_ids = movie_ids[top_indices]
+                
+                # Save preference
+                preference.user = request.user
+                preference.save()
+                
+                # Create recommendation
+                recommendation = Recommendation.objects.create(
+                    user=request.user,
+                    preference=preference
+                )
+                
+                # Add recommended movies
+                for movie_id in recommended_movie_ids:
+                    try:
+                        movie = Movie.objects.get(movie_id=movie_id)
+                        recommendation.movies.add(movie)
+                    except Movie.DoesNotExist:
+                        print(f"Movie {movie_id} not found in database")
+                
+                recommendation.save()
+                return redirect('recommendation_detail', recommendation_id=recommendation.id)
+                
+            except Exception as e:
+                print(f"Error making prediction: {e}")
+                form.add_error(None, "Error generating recommendations. Please try again.")
+                
+        return render(request, 'recommendations/recommendation_engine.html', {'form': form})
+
+    def prepare_genre_preferences(self, preference):
+        genre_preferences = np.zeros(len(GENRE_CHOICES))
+        selected_genres = [
+            preference.genre1, preference.genre2, preference.genre3,
+            preference.genre4, preference.genre5
+        ]
+        
+        for i, genre in enumerate(GENRE_CHOICES):
+            if genre in selected_genres:
+                genre_preferences[i] = 1
+            elif preference.include_other_genres:
+                genre_preferences[i] = 0
+            else:
+                genre_preferences[i] = -1
+                
+        return genre_preferences
+    
+
+class RecommendationDetailView(View):
+    def get(self, request, recommendation_id):
+        recommendation = Recommendation.objects.get(id=recommendation_id)
+        return render(request, 'recommendations/recommendation_detail.html', {'recommendation': recommendation})
+
+
+
+models.py
+
+from django.db import models
+import keras
+import tensorflow as tf
+from keras.saving import register_keras_serializable
+import pandas as pd
+import numpy as np
+import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class Movie(models.Model):
+    movie_id = models.IntegerField(primary_key=True)
+    title = models.CharField(max_length=255)
+    genres = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.title
+
+
+class Recommendation(models.Model):
+    user = models.ForeignKey('user.Myuser', on_delete=models.DO_NOTHING, related_name="recommendations")
+    preference = models.ForeignKey('recommendations.Preference', on_delete=models.CASCADE, related_name="recommendation")
+    movies = models.ManyToManyField(Movie, related_name="recommendations")
+
+    def __str__(self): 
+        return f"Recommendation for {self.user.username}"
+
+
+class Preference(models.Model):
+    genre1 = models.CharField(max_length=255)
+    genre2 = models.CharField(max_length=255, blank=True, null=True)
+    genre3 = models.CharField(max_length=255, blank=True, null=True)
+    genre4 = models.CharField(max_length=255, blank=True, null=True)
+    genre5 = models.CharField(max_length=255, blank=True, null=True)
+    include_other_genres = models.BooleanField(default=False)
+
+
+
+# Do this one last
+class SimilarMovie(models.Model):
+    pass
+
+
+#------------------------#
+#                        #
+#      ML MODEL          #
+#                        #
+#------------------------#
+
+@keras.saving.register_keras_serializable()
+@register_keras_serializable()
+class MovieGenreModel(tf.keras.Model):
+    def __init__(self, movies=None, num_genres=19, trainable=True, dtype=None, **kwargs):
+        super().__init__(trainable=trainable, dtype=dtype, **kwargs)
+        
+        # Initialize movie vocabulary
+        if movies is None:
+            try:
+                movies_path = os.path.join(os.path.dirname(__file__), 'movies.csv')
+                movies = pd.read_csv(movies_path)
+                movie_ids = movies['movieId'].astype(str).unique()
+            except Exception as e:
+                print(f"Warning: Could not load movies.csv: {e}")
+                movie_ids = ['1']
+        else:
+            movie_ids = movies['movieId'].astype(str).unique()
+            
+        # Use exactly the same layer structure as training script
+        self.movie_embedding = tf.keras.Sequential([
+            tf.keras.layers.StringLookup(
+                vocabulary=movie_ids,
+                mask_token=None),
+            tf.keras.layers.Embedding(
+                input_dim=len(movie_ids) + 1,
+                output_dim=32)
+        ])
+        
+        self.genre_embedding = tf.keras.Sequential([
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(32)
+        ])
+        
+        self.rating_predictor = tf.keras.Sequential([
+            tf.keras.layers.Dense(32, activation='relu'),
+            tf.keras.layers.Dense(16, activation='relu'),
+            tf.keras.layers.Dense(1)
+        ])
+
+    def call(self, inputs):
+        movie_emb = self.movie_embedding(inputs['movieId'])
+        genre_emb = self.genre_embedding(inputs['genre_preferences'])
+        combined = tf.concat([movie_emb, genre_emb], axis=1)
+        return self.rating_predictor(combined)
+
+    def get_config(self):
+        config = super().get_config()
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+    

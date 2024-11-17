@@ -9,26 +9,14 @@ import numpy as np
 import os
 from .models import Movie, MovieGenreModel, Recommendation  # Import the model class we just created
 
+# Load the Keras model (relative path) 
 model_path = os.path.join(os.path.dirname(__file__), 'genreModel.keras')
-'''
-print("\nInspecting saved model structure:")
-saved_model = tf.keras.models.load_model(model_path, compile=False)
-print(saved_model.summary())
-
-# Also print the layer names and types
-print("\nLayer details:")
-for layer in saved_model.layers:
-    print(f"Layer name: {layer.name}, Type: {type(layer).__name__}")
-    if hasattr(layer, 'layers'):
-        print("  Sublayers:")
-        for sublayer in layer.layers:
-            print(f"    {sublayer.name}: {type(sublayer).__name__}")'''
 
 try:
     # Load the model with compile=False first
     model = load_model(
         model_path, 
-        custom_objects={'MovieGenreModel': MovieGenreModel},
+        custom_objects={'MovieGenreModel': MovieGenreModel}, 
         compile=False
     )
     
