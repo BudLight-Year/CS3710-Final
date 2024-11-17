@@ -5,4 +5,13 @@
 {% block content %}
 
 <h3>Smart Movie Recommendations</h3>
+
+<a href="{% url 'index' object.username %}">
+    <button type="button">Get A New Recommendation</button>
+</a>
+
+<a href="{% url 'index' object.username %}">
+    <button type="button">See All Recommendations</button>
+</a>
+
 {% endblock %}
