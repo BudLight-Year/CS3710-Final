@@ -1,6 +1,8 @@
 from django.db import models
 import tensorflow as tf
 from keras.saving import register_keras_serializable
+import numpy as np
+
 
 # Create your models here.
 
@@ -43,50 +45,50 @@ class SimilarMovie(models.Model):
 #                        #
 #------------------------#
 
-
 @register_keras_serializable()
 class MovieGenreModel(tf.keras.Model):
-    def __init__(self, **kwargs):
+    def __init__(self, vocabulary=None, **kwargs):
         super().__init__(**kwargs)
+        self.vocabulary = vocabulary if vocabulary else []
         
-        # Initialize layers with None - they will be properly configured when the model is loaded
-        self.movie_embedding = None
-        self.genre_embedding = None
-        self.rating_predictor = None
-        
-    def build(self, input_shape):
-        # This method is called when the model is being built/loaded
-        if self.movie_embedding is None:
-            self.movie_embedding = tf.keras.Sequential([
-                tf.keras.layers.StringLookup(mask_token=None),
-                tf.keras.layers.Embedding(
-                    input_dim=1000,  # This will be configured from saved weights
-                    output_dim=32
-                )
-            ])
+        # Initialize layers
+        self.string_lookup = tf.keras.layers.StringLookup(
+            vocabulary=self.vocabulary,
+            mask_token=None)
             
-        if self.genre_embedding is None:
-            self.genre_embedding = tf.keras.Sequential([
-                tf.keras.layers.Dense(64, activation='relu'),
-                tf.keras.layers.Dense(32)
-            ])
-            
-        if self.rating_predictor is None:
-            self.rating_predictor = tf.keras.Sequential([
-                tf.keras.layers.Dense(32, activation='relu'),
-                tf.keras.layers.Dense(16, activation='relu'),
-                tf.keras.layers.Dense(1)
-            ])
+        self.embedding = tf.keras.layers.Embedding(
+            input_dim=len(self.vocabulary) + 1 if vocabulary else 1000,
+            output_dim=32
+        )
         
-        super().build(input_shape)
+        self.genre_dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.genre_dense2 = tf.keras.layers.Dense(32)
+        self.predictor_dense1 = tf.keras.layers.Dense(32, activation='relu')
+        self.predictor_dense2 = tf.keras.layers.Dense(16, activation='relu')
+        self.predictor_dense3 = tf.keras.layers.Dense(1)
 
     def call(self, inputs):
-        movie_emb = self.movie_embedding(inputs['movieId'])
-        genre_emb = self.genre_embedding(inputs['genre_preferences'])
-        combined = tf.concat([movie_emb, genre_emb], axis=1)
-        return self.rating_predictor(combined)
+        # Process movie IDs
+        x_movie = self.string_lookup(inputs['movieId'])
+        x_movie = self.embedding(x_movie)
+        
+        # Process genre preferences
+        x_genre = self.genre_dense1(inputs['genre_preferences'])
+        x_genre = self.genre_dense2(x_genre)
+        
+        # Combine and predict
+        if len(x_movie.shape) > 2:
+            x_movie = tf.squeeze(x_movie, axis=1)
+        combined = tf.concat([x_movie, x_genre], axis=1)
+        
+        x = self.predictor_dense1(combined)
+        x = self.predictor_dense2(x)
+        return self.predictor_dense3(x)
 
     def get_config(self):
         config = super().get_config()
+        config.update({
+            'vocabulary': self.vocabulary
+        })
         return config
-
+    
