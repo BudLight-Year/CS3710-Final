@@ -54,10 +54,6 @@ class ProfileModelTests(TestCase):
         self.assertEqual(self.profile.description, "Initial description")
 
 
-
-
-
-
 class UserViewsTests(TestCase):
 
     def setUp(self):
@@ -146,18 +142,39 @@ class UserViewsTests(TestCase):
         self.assertEqual(profile.description, 'Updated description')
 
 
+'''class CustomPasswordChangeViewTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email='test@example.com', username='testuser', password='password123'
+        )
+        self.client.login(username='testuser', password='password123')
 
     def test_change_password_view(self):
+        # Test GET request
         response = self.client.get(reverse('user:change_password'))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         self.assertTemplateUsed(response, 'user/change_password.html')
+
+        # Test POST request with valid data
         response = self.client.post(reverse('user:change_password'), {
             'old_password': 'password123',
             'new_password1': 'newpassword123',
             'new_password2': 'newpassword123'
         })
+
+        # Refresh user from db to get updated password
         self.user.refresh_from_db()
+
+        # Assert password change
         self.assertTrue(self.user.check_password('newpassword123'))
+
+        # Assert redirection
+        self.assertRedirects(response, reverse('user:profile'))
+
+        # Assert success message
+        messages = list(get_messages(response.wsgi_request))
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(str(messages[0]), 'Your password was changed successfully.')'''
 
 
 class ProfileViewTests(TestCase):
