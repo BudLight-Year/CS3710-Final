@@ -15,21 +15,26 @@ class UpdateProfileForm(forms.ModelForm):
         model = Profile
         fields = ('description',)
 
+
 class MyUserSignupForm(SignupForm):
-    email = forms.EmailField(max_length=255, label='Email')
     username = forms.CharField(max_length=30, label='Username')
-    password1 = forms.CharField(widget=forms.PasswordInput, label='Password')
-    password2 = forms.CharField(widget=forms.PasswordInput, label='Password confirmation')
-    description = forms.CharField(widget=forms.Textarea, label='Profile Description', required=False)
+    description = forms.CharField(
+        widget=forms.Textarea, 
+        label='Profile Description', 
+        required=False
+    )
 
     def save(self, request):
-        email = self.cleaned_data['email']
-        username = self.cleaned_data['username']
-        password = self.cleaned_data['password1']
-        description = self.cleaned_data['description']
-        user = MyUser.objects.create_user(email, username, password)
-        user.save()
-        Profile.objects.create(user=user, description=description)
+        # First, save the user using the parent class's save method
+        user = super().save(request)
+        
+        # Then create/update the profile
+        description = self.cleaned_data.get('description', '')
+        Profile.objects.update_or_create(
+            user=user,
+            defaults={'description': description}
+        )
+        
         return user
     
 class CustomAuthenticationForm(AuthenticationForm):
