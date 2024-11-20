@@ -9,6 +9,7 @@ import numpy as np
 import os
 from .models import Movie, MovieGenreModel, Recommendation
 import pandas as pd
+from django.views.generic import ListView
 
 GENRE_CHOICES = [
     'Action', 'Adventure', 'Animation', 'Children', 'Comedy',
@@ -262,4 +263,12 @@ class RecommendationDetailView(View):
     def get(self, request, recommendation_id):
         recommendation = Recommendation.objects.get(id=recommendation_id)
         return render(request, 'recommendations/recommendation_detail.html', {'recommendation': recommendation})
+
+
+
+
+class RecommendationsListView(ListView):
+    model = Recommendation
+    template_name = 'recommendations/recommendations_list.html'
+    context_object_name = 'recommendations'
 

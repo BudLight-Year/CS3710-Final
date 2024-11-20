@@ -32,7 +32,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link blurred {% if request.resolver_match.url_name == '/' %}active{% endif %}"
-                        href="{% url 'index' %}">Browse Recommendations</a>
+                        href="{% url 'recommendations:recommendations_list' %}">Browse Recommendations</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}"

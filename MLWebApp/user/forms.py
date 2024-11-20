@@ -16,6 +16,8 @@ class UpdateProfileForm(forms.ModelForm):
         fields = ('description',)
 
 
+# Remove signals.py entirely and just use the form handling
+
 class MyUserSignupForm(SignupForm):
     username = forms.CharField(max_length=30, label='Username')
     description = forms.CharField(
@@ -25,27 +27,15 @@ class MyUserSignupForm(SignupForm):
     )
 
     def save(self, request):
-        # First, save the user using the parent class's save method
         user = super().save(request)
-        
-        # Then create/update the profile
         description = self.cleaned_data.get('description', '')
         Profile.objects.update_or_create(
             user=user,
             defaults={'description': description}
         )
-        
         return user
     
 class CustomAuthenticationForm(AuthenticationForm):
     username = forms.EmailField(label="Email", max_length=254)
 
-class AdvertiserForm(forms.Form):
-    is_advertiser = forms.CharField(max_length=10)
-
-    def clean_is_advertiser(self):
-        data = self.cleaned_data['is_advertiser']
-        if data.lower() != 'yes':
-            raise forms.ValidationError("You must type 'yes' to become an advertiser.")
-        return data
 
