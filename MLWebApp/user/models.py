@@ -55,6 +55,9 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
 
 class Profile(models.Model):
-    description = models.TextField()
-    user = models.ForeignKey('user.Myuser', on_delete=models.CASCADE, related_name="profile")
+    user = models.OneToOneField(MyUser, on_delete=models.CASCADE, related_name='profile')
+    description = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s profile"
 
