@@ -7,7 +7,8 @@ from allauth.account.views import PasswordChangeView
 from django.contrib import messages
 from django.views.generic import DetailView
 from django.contrib.auth.decorators import login_required
-from user.forms import  AdvertiserForm, UpdateAccountForm, UpdateProfileForm
+from user.models import Profile
+from user.forms import  UpdateAccountForm, UpdateProfileForm
 
 
 def index(request):
@@ -28,17 +29,22 @@ def update_account(request):
     return render(request, 'user/update_account.html', {'form': form})
 
 def update_profile(request):
-    # TODO add restricted access message
     if not request.user.is_authenticated:
         return redirect('index')
+    
+    # Correctly fetch the user's profile
+    profile = Profile.objects.get(user=request.user)
+    
     if request.method == 'POST':
-        form = UpdateProfileForm(request.POST, instance=request.user)
+        form = UpdateProfileForm(request.POST, instance=profile)
         if form.is_valid():
             form.save()
-            return redirect('profile', username=request.user.username) 
+            return redirect('user:profile', username=request.user.username)
     else:
-        form = UpdateProfileForm(instance=request.user)
+        form = UpdateProfileForm(instance=profile)
+    
     return render(request, 'user/update_account.html', {'form': form})
+
 
 def change_password(request):
     if not request.user.is_authenticated:
@@ -73,15 +79,3 @@ class ProfileView(DetailView):
         user = self.request.user
         return context
 
-@login_required
-def become_advertiser(request):
-    if request.method == 'POST':
-        form = AdvertiserForm(request.POST)
-        if form.is_valid():
-            request.user.is_advertiser = True
-            request.user.save()
-            return redirect('user:index')  # Redirect to a success page
-    else:
-        form = AdvertiserForm()
-
-    return render(request, 'user/become_advertiser.html', {'form': form})

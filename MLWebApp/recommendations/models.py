@@ -10,6 +10,8 @@ class Movie(models.Model):
     movie_id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=255)
     genres = models.CharField(max_length=255)
+    mean = models.FloatField(default=0)  # Average rating
+    count = models.IntegerField(default=0)  # Number of ratings
 
     def __str__(self):
         return self.title
@@ -25,13 +27,21 @@ class Recommendation(models.Model):
 
 
 class Preference(models.Model):
-    genre1 = models.CharField(max_length=255)
+    genre1 = models.CharField(max_length=255, blank=True, null=True)
     genre2 = models.CharField(max_length=255, blank=True, null=True)
     genre3 = models.CharField(max_length=255, blank=True, null=True)
     genre4 = models.CharField(max_length=255, blank=True, null=True)
     genre5 = models.CharField(max_length=255, blank=True, null=True)
-    include_other_genres = models.BooleanField(default=False)
-
+    include_other_genres = models.BooleanField(default=True)
+    
+    def __str__(self):
+        # Get all non-empty genres
+        genres = [
+            self.genre1, self.genre2, self.genre3, 
+            self.genre4, self.genre5
+        ]
+        selected_genres = [g for g in genres if g]
+        return f"Preference: {', '.join(selected_genres)}"
 
 
 # Do this one last
@@ -47,48 +57,48 @@ class SimilarMovie(models.Model):
 
 @register_keras_serializable()
 class MovieGenreModel(tf.keras.Model):
-    def __init__(self, vocabulary=None, **kwargs):
+    def __init__(self, movies=None, **kwargs):
         super().__init__(**kwargs)
-        self.vocabulary = vocabulary if vocabulary else []
+        self.vocabulary = None if movies is None else movies['movie_id'].unique().astype(str)
         
-        # Initialize layers
-        self.string_lookup = tf.keras.layers.StringLookup(
-            vocabulary=self.vocabulary,
-            mask_token=None)
-            
-        self.embedding = tf.keras.layers.Embedding(
-            input_dim=len(self.vocabulary) + 1 if vocabulary else 1000,
-            output_dim=32
-        )
+        # Initialize layers to match training architecture
+        self.movie_embedding = tf.keras.Sequential([
+            tf.keras.layers.StringLookup(
+                vocabulary=self.vocabulary,
+                mask_token=None),
+            tf.keras.layers.Embedding(
+                input_dim=len(self.vocabulary) + 1 if self.vocabulary is not None else 1000,
+                output_dim=32)
+        ])
         
-        self.genre_dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.genre_dense2 = tf.keras.layers.Dense(32)
-        self.predictor_dense1 = tf.keras.layers.Dense(32, activation='relu')
-        self.predictor_dense2 = tf.keras.layers.Dense(16, activation='relu')
-        self.predictor_dense3 = tf.keras.layers.Dense(1)
+        self.genre_embedding = tf.keras.Sequential([
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(32)
+        ])
+        
+        self.rating_predictor = tf.keras.Sequential([
+            tf.keras.layers.Dense(32, activation='relu'),
+            tf.keras.layers.Dense(16, activation='relu'),
+            tf.keras.layers.Dense(1)
+        ])
 
     def call(self, inputs):
-        # Process movie IDs
-        x_movie = self.string_lookup(inputs['movieId'])
-        x_movie = self.embedding(x_movie)
-        
-        # Process genre preferences
-        x_genre = self.genre_dense1(inputs['genre_preferences'])
-        x_genre = self.genre_dense2(x_genre)
-        
-        # Combine and predict
-        if len(x_movie.shape) > 2:
-            x_movie = tf.squeeze(x_movie, axis=1)
-        combined = tf.concat([x_movie, x_genre], axis=1)
-        
-        x = self.predictor_dense1(combined)
-        x = self.predictor_dense2(x)
-        return self.predictor_dense3(x)
+        movie_emb = self.movie_embedding(inputs['movieId'])
+        genre_emb = self.genre_embedding(inputs['genre_preferences'])
+        combined = tf.concat([movie_emb, genre_emb], axis=1)
+        return self.rating_predictor(combined)
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'vocabulary': self.vocabulary
+            'vocabulary': self.vocabulary.tolist() if self.vocabulary is not None else None
         })
         return config
+
+    @classmethod
+    def from_config(cls, config):
+        # Convert vocabulary back to numpy array if it exists
+        if config['vocabulary'] is not None:
+            config['vocabulary'] = np.array(config['vocabulary'])
+        return cls(**config)
     
