@@ -16,8 +16,6 @@ class UpdateProfileForm(forms.ModelForm):
         fields = ('description',)
 
 
-# Remove signals.py entirely and just use the form handling
-
 class MyUserSignupForm(SignupForm):
     username = forms.CharField(max_length=30, label='Username')
     description = forms.CharField(

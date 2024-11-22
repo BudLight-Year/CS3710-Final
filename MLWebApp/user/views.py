@@ -69,7 +69,7 @@ class CustomPasswordChangeView(PasswordChangeView):
 
 class ProfileView(DetailView):
     model = get_user_model()
-    template_name = 'user/profile.html'  # replace with your template
+    template_name = 'user/profile.html'  
     slug_field = 'username'
     slug_url_kwarg = 'username'
 

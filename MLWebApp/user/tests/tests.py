@@ -74,12 +74,11 @@ class UserViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'user/update_account.html')
         form = UpdateAccountForm(instance=self.user)
-        response = self.client.post(reverse('user:update_account'), {'email': 'newemail@example.com'})
+        response = self.client.post(reverse('user:update_account'), {'username': 'TestingName'})
         self.user.refresh_from_db()
-        self.assertEqual(self.user.email, 'newemail@example.com')
+        self.assertEqual(self.user.username, 'TestingName')
 
     def test_update_profile_view(self):
-        Profile.objects.create(user=self.user, description="Initial description")
         response = self.client.get(reverse('user:update_profile'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'user/update_account.html')
@@ -88,10 +87,10 @@ class UserViewsTests(TestCase):
         self.assertEqual(self.user.profile.description, 'Updated description')
 
     def test_change_password_view(self):
-        response = self.client.get(reverse('user:change_password'))
+        response = self.client.get(reverse('user:account_change_password'))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'user/change_password.html')
-        response = self.client.post(reverse('user:change_password'), {
+        self.assertTemplateUsed(response, 'account/password_change.html')
+        response = self.client.post(reverse('user:account_change_password'), {
             'old_password': 'password123',
             'new_password1': 'newpassword123',
             'new_password2': 'newpassword123'
