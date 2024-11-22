@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import  LoginRequiredMixin
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.http import HttpResponse
 from django.views import View
 from .forms import PreferenceForm
@@ -10,6 +10,8 @@ import os
 from .models import Movie, MovieGenreModel, Recommendation
 import pandas as pd
 from django.views.generic import ListView
+from django.contrib.auth.decorators import login_required
+
 
 GENRE_CHOICES = [
     'Action', 'Adventure', 'Animation', 'Children', 'Comedy',
@@ -272,3 +274,9 @@ class RecommendationsListView(ListView):
     template_name = 'recommendations/recommendations_list.html'
     context_object_name = 'recommendations'
 
+
+@login_required
+def delete_recommendation(request, recommendation_id):
+    recommendation = get_object_or_404(Recommendation, id=recommendation_id, user=request.user) 
+    recommendation.delete()
+    return redirect('user:profile', username = request.user.username)  

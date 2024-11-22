@@ -21,6 +21,8 @@ class Recommendation(models.Model):
     user = models.ForeignKey('user.Myuser', on_delete=models.DO_NOTHING, related_name="recommendations")
     preference = models.ForeignKey('recommendations.Preference', on_delete=models.CASCADE, related_name="recommendation")
     movies = models.ManyToManyField(Movie, related_name="recommendations")
+    date_created = models.DateTimeField(auto_now_add=True)
+
 
     def __str__(self): 
         return f"Recommendation for {self.user.username}"
