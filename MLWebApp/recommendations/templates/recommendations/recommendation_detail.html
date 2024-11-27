@@ -16,11 +16,13 @@
     {% if submitted %}
         <h2>Thank you for your feedback!</h2>
     {% else %}
-        <h2>Submit Feedback</h2>
+        <h2>How was this recommendation?</h2>
+
         <form method="post">
             {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit">Submit</button>
+            {{ form.non_field_errors }}
+            <button name="feedback" type="submit" value="True">Good</button>
+            <button name="feedback" type="submit" value="False">Bad</button>
         </form>
     {% endif %}
 {% endif %}

@@ -7,7 +7,7 @@ from keras.models import load_model
 import tensorflow as tf
 import numpy as np
 import os
-from .models import Movie, MovieGenreModel, Recommendation
+from .models import Feedback, Movie, MovieGenreModel, Recommendation
 import pandas as pd
 from django.views.generic import ListView
 from django.contrib.auth.decorators import login_required
@@ -275,8 +275,8 @@ class RecommendationDetailView(View):
         recommendation = get_object_or_404(Recommendation, id=recommendation_id)
         form = FeedbackForm(request.POST)
         if form.is_valid():
-            feedback = form.save(commit=False)
-            feedback.recommendation = recommendation
+            feedback_value = form.cleaned_data['feedback']
+            feedback = Feedback(feedback=feedback_value, recommendation=recommendation)
             feedback.save()
             return render(request, 'recommendations/recommendation_detail.html', {
                 'recommendation': recommendation,
@@ -288,10 +288,6 @@ class RecommendationDetailView(View):
             'form': form,
             'submitted': False
         })
-
-
-
-
 
 
 class RecommendationsListView(ListView):

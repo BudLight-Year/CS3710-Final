@@ -41,7 +41,9 @@ class PreferenceForm(forms.ModelForm):
         return cleaned_data
     
 
-class FeedbackForm(forms.ModelForm):
-    class Meta:
-        model = Feedback
-        fields = ['feedback', 'recommendation']
+class FeedbackForm(forms.Form):
+    feedback = forms.ChoiceField(
+        choices=[(True, 'Good'), (False, 'Bad')],
+        widget=forms.RadioSelect
+    )
+
