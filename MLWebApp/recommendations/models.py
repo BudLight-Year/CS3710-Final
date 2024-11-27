@@ -50,6 +50,10 @@ class Preference(models.Model):
 class SimilarMovie(models.Model):
     pass
 
+class Feedback(models.Model):
+    feedback = models.BooleanField()
+    recommendation = models.ForeignKey('recommendations.Recommendation', on_delete=models.CASCADE, related_name='feedback')
+        
 
 #------------------------#
 #                        #

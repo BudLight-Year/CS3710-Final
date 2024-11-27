@@ -2,7 +2,7 @@ from django.contrib.auth.mixins import  LoginRequiredMixin
 from django.shortcuts import get_object_or_404, render, redirect
 from django.http import HttpResponse
 from django.views import View
-from .forms import PreferenceForm
+from .forms import FeedbackForm, PreferenceForm
 from keras.models import load_model
 import tensorflow as tf
 import numpy as np
@@ -263,8 +263,33 @@ class RecommendationEngineView(LoginRequiredMixin, View):
 
 class RecommendationDetailView(View):
     def get(self, request, recommendation_id):
-        recommendation = Recommendation.objects.get(id=recommendation_id)
-        return render(request, 'recommendations/recommendation_detail.html', {'recommendation': recommendation})
+        recommendation = get_object_or_404(Recommendation, id=recommendation_id)
+        form = FeedbackForm()
+        return render(request, 'recommendations/recommendation_detail.html', {
+            'recommendation': recommendation,
+            'form': form,
+            'submitted': False
+        })
+
+    def post(self, request, recommendation_id):
+        recommendation = get_object_or_404(Recommendation, id=recommendation_id)
+        form = FeedbackForm(request.POST)
+        if form.is_valid():
+            feedback = form.save(commit=False)
+            feedback.recommendation = recommendation
+            feedback.save()
+            return render(request, 'recommendations/recommendation_detail.html', {
+                'recommendation': recommendation,
+                'form': FeedbackForm(),  # Reset the form
+                'submitted': True
+            })
+        return render(request, 'recommendations/recommendation_detail.html', {
+            'recommendation': recommendation,
+            'form': form,
+            'submitted': False
+        })
+
+
 
 
 

@@ -46,7 +46,6 @@
                         aria-haspopup="true" aria-expanded="false">{{ user.username }}</a>
                     <div class="dropdown-menu dropdown-menu-end">
                         <a class="dropdown-item" href="{% url 'user:index' %}">My Account</a>
-                        <a class="dropdown-item" href="{% url 'index' %}">Messages</a>
                         <a class="dropdown-item" href="{% url 'user:account_logout' %}">Sign Out</a>
                     </div>
                 </li>
