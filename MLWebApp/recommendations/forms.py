@@ -1,5 +1,5 @@
 from django import forms
-from .models import Preference
+from .models import Feedback, Preference
 from .constants import GENRE_CHOICES
 
 
@@ -39,3 +39,9 @@ class PreferenceForm(forms.ModelForm):
             )
         
         return cleaned_data
+    
+
+class FeedbackForm(forms.ModelForm):
+    class Meta:
+        model = Feedback
+        fields = ['feedback', 'recommendation']

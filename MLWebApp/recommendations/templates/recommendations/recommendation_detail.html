@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h1>Recommendation Output</h3>
+<h1>Recommendation Output</h1>
 
-<h2>Recommendation for {{ recommendation.user.username }}</h1>
+<h2>Recommendation for {{ recommendation.user.username }}</h2>
 <p>Preference ID: {{ recommendation.preference.id }}</p>
 <h2>Recommended Movies:</h2>
 <ul>
@@ -12,5 +12,17 @@
     {% endfor %}
 </ul>
 
+{% if request.user == recommendation.user %}
+    {% if submitted %}
+        <h2>Thank you for your feedback!</h2>
+    {% else %}
+        <h2>Submit Feedback</h2>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Submit</button>
+        </form>
+    {% endif %}
+{% endif %}
 
 {% endblock %}
