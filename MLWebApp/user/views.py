@@ -26,7 +26,7 @@ def update_account(request):
             return redirect('user:index')
     else:
         form = UpdateAccountForm(instance=request.user)
-    return render(request, 'user/update_account.html', {'form': form})
+    return render(request, 'user/update_username.html', {'form': form})
 
 def update_profile(request):
     if not request.user.is_authenticated:
@@ -39,11 +39,11 @@ def update_profile(request):
         form = UpdateProfileForm(request.POST, instance=profile)
         if form.is_valid():
             form.save()
-            return redirect('user:profile', username=request.user.username)
+            return redirect('user:index')
     else:
         form = UpdateProfileForm(instance=profile)
     
-    return render(request, 'user/update_account.html', {'form': form})
+    return render(request, 'user/update_description.html', {'form': form})
 
 
 def change_password(request):

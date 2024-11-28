@@ -45,7 +45,7 @@
                     <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button"
                         aria-haspopup="true" aria-expanded="false">{{ user.username }}</a>
                     <div class="dropdown-menu dropdown-menu-end">
-                        <a class="dropdown-item" href="{% url 'user:index' %}">My Account</a>
+                        <a class="dropdown-item" href="{% url 'user:profile' request.user.username %}">My profile</a>
                         <a class="dropdown-item" href="{% url 'user:account_logout' %}">Sign Out</a>
                     </div>
                 </li>

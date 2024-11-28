@@ -12,7 +12,8 @@
             <div class="list-group">
                 <a href="{% url 'user:index' %}" class="list-group-item list-group-item-action active">My Account</a>
                 <a href="{% url 'user:profile' user.username  %}" class="list-group-item list-group-item-action">My Profile</a>
-                <a href="{% url 'user:update_account' %}" class="list-group-item list-group-item-action">Update Account</a>
+                <a href="{% url 'user:update_account' %}" class="list-group-item list-group-item-action">Update Username</a>
+                <a href="{% url 'user:update_profile' %}" class="list-group-item list-group-item-action">Update Profile Description</a>
                 <a href="{% url 'user:account_change_password' %}" class="list-group-item list-group-item-action">Change Password</a>
                 <a href="{% url 'user:account_logout' %}" class="list-group-item list-group-item-action list-group-item-danger">Sign Out</a>
             </div>

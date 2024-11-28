@@ -6,6 +6,8 @@ import numpy as np
 
 # Create your models here.
 
+from django.db import models
+
 class Movie(models.Model):
     movie_id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=255)
@@ -15,6 +17,11 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.title
+
+    def rounded_mean(self, decimals=2):
+        """Return the average rating rounded to the specified number of decimal places."""
+        return round(self.mean, decimals)
+
 
 
 class Recommendation(models.Model):
