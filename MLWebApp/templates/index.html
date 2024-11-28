@@ -4,14 +4,17 @@
 
 {% block content %}
 
-<h3>Smart Movie Recommendations</h3>
+<div class="container mt-5">
+    <h3 class="text-center">Smart Movie Recommendations</h3>
 
-<a href="{% url 'recommendations:engine' %}">
-    <button type="button">Get A New Recommendation</button>
-</a>
+    <div class="d-flex justify-content-center mt-4">
+        <a href="{% url 'recommendations:engine' %}" class="btn btn-primary btn-lg mx-2">
+            Get A New Recommendation
+        </a>
 
-<a href="{% url 'recommendations:recommendations_list' %}">
-    <button type="button">See All Recommendations</button>
-</a>
-
+        <a href="{% url 'recommendations:recommendations_list' %}" class="btn btn-primary btn-lg mx-2">
+            See All Recommendations
+        </a>
+    </div>
+</div>
 {% endblock %}

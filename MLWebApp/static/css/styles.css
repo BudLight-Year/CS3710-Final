@@ -80,6 +80,10 @@ p, h1, h2, h3, h4, h5, h6, a, span, div {
     width: 70%;
 }
 
+.btn-primary {
+    background-color: #0bc9d3; /* Change to your desired color */
+    border-color: #0bc9d3; /* Match the border color */
+}
 
 
 

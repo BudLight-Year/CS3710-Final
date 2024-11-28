@@ -2,22 +2,31 @@
 
 {% block content %}
   <div class="container mt-4">
-    <h2>All Recommendations</h2>
+    <h2 class="text-center">All Recommendations</h2>
     <div class="accordion" id="recommendationsAccordion">
       {% for recommendation in page_obj %}
         <div class="accordion-item">
           <h2 class="accordion-header" id="heading{{ forloop.counter }}">
             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
-              User: {{ recommendation.user.username }}, {{ recommendation.date_created }} {{ recommendation.preference }}
+              User: {{ recommendation.user.username }}, {{ recommendation.date_created | date:"F j, Y, g:i a" }} {{ recommendation.preference }}
             </button>
           </h2>
           <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#recommendationsAccordion">
             <div class="accordion-body">
-              <p><strong>Preference:</strong> {{ recommendation.preference }}</p>
-              <p><strong>Movies:</strong></p>
-              <ul>
+              <p><strong>Preference ID:</strong> {{ recommendation.preference.id }}</p>
+              <p><strong>Date Created:</strong> {{ recommendation.date_created | date:"F j, Y, g:i a" }}</p>
+              <h4>Movies:</h4>
+              <ul class="list-group">
                 {% for movie in recommendation.movies.all %}
-                  <li>{{ movie.title }}</li>
+                  <li class="list-group-item py-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="flex-grow-1"><strong>{{ movie.title }}</strong></div>
+                      <div class="d-flex align-items-center">
+                        <span class="badge bg-primary mx-2">{{ movie.genres }}</span>
+                        <span class="small"><strong>Rating:</strong> {{ movie.rounded_mean }} ({{ movie.count }} ratings)</span>
+                      </div>
+                    </div>
+                  </li>
                 {% endfor %}
               </ul>
             </div>
@@ -25,23 +34,43 @@
         </div>
       {% endfor %}
     </div>
-    
+
     <div class="pagination mt-4">
-      <span class="step-links">
+      <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
           {% if page_obj.has_previous %}
-              <a href="?page=1">&laquo; first</a>
-              <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+            <li class="page-item">
+              <a class="page-link" href="?page=1" aria-label="First">
+                <span aria-hidden="true">&laquo; First</span>
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                <span aria-hidden="true">Previous</span>
+              </a>
+            </li>
           {% endif %}
-  
-          <span class="current">
-              Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
-          </span>
-  
+          
+          <li class="page-item disabled">
+            <span class="page-link">
+              Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+          </li>
+          
           {% if page_obj.has_next %}
-              <a href="?page={{ page_obj.next_page_number }}">next</a>
-              <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                <span aria-hidden="true">Next</span>
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                <span aria-hidden="true">Last &raquo;</span>
+              </a>
+            </li>
           {% endif %}
-      </span>
+        </ul>
+      </nav>
     </div>
   </div>
 {% endblock %}
