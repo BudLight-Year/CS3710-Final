@@ -11,6 +11,7 @@ from .models import Feedback, Movie, MovieGenreModel, Recommendation
 import pandas as pd
 from django.views.generic import ListView
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator 
 
 
 GENRE_CHOICES = [
@@ -292,8 +293,18 @@ class RecommendationDetailView(View):
 
 class RecommendationsListView(ListView):
     model = Recommendation
-    template_name = 'recommendations/recommendations_list.html'
+    template_name = 'recommendations/recommendation_list.html'
     context_object_name = 'recommendations'
+    paginate_by = 10  # Number of recommendations per page
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paginator = Paginator(self.get_queryset(), self.paginate_by)
+        page_number = self.request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        context['page_obj'] = page_obj
+        return context
+
 
 
 @login_required
