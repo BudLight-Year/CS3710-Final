@@ -1,10 +1,17 @@
 /* styles.css */
 body, html {
-    color: #000e8c !important; /* Replace with your desired text color */
+    color: #360167 !important; /* Replace with your desired text color */
 }
 
 p, h1, h2, h3, h4, h5, h6, a, span, div {
     color: inherit !important; /* Ensure all elements inherit the color */
+}
+
+
+/* Custom focus outline styling */
+:focus {
+    outline: 2px solid #0bc9d3; /* Change to your preferred color */
+    outline-offset: 4px; /* Optional: Space between the element and the outline */
 }
 
 
