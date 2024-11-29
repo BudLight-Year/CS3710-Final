@@ -1,15 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h3>Recommendation Engine</h3>
+<h1>Recommendation Engine</h1>
 
 <div>
-    <h2>Explanation of how to work engine</h2>
     <p>To get a movie recommendation just input one to five genres you prefer.</p>
     <p>Additionally you can decide if you want the recommendation engine to search strictly those genres or allow other genres as well.</p>
 </div>
 
-<h1>Create Preference</h1> 
+<h3>Choose Genres</h3> 
 <form method="post"> 
     {% csrf_token %} 
     {{ form.as_p }} 
