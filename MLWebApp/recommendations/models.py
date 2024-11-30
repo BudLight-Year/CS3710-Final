@@ -8,12 +8,20 @@ import numpy as np
 
 from django.db import models
 
+GENRE_CHOICES = [
+    'Action', 'Adventure', 'Animation', 'Children', 'Comedy',
+    'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir',
+    'Horror', 'IMAX', 'Musical', 'Mystery', 'Romance', 'Sci-Fi',
+    'Thriller', 'War', 'Western'
+]
+
 class Movie(models.Model):
     movie_id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=255)
     genres = models.CharField(max_length=255)
     mean = models.FloatField(default=0)  # Average rating
     count = models.IntegerField(default=0)  # Number of ratings
+    year = models.IntegerField(default=0)
 
     def __str__(self):
         return self.title
@@ -21,6 +29,9 @@ class Movie(models.Model):
     def rounded_mean(self, decimals=2):
         """Return the average rating rounded to the specified number of decimal places."""
         return round(self.mean, decimals)
+    
+
+    
 
 
 
@@ -65,53 +76,89 @@ class Feedback(models.Model):
 #------------------------#
 #                        #
 #      ML MODEL          #
-#                        #
+#                        # 
 #------------------------#
 
 @register_keras_serializable()
-class MovieGenreModel(tf.keras.Model):
-    def __init__(self, movies=None, **kwargs):
-        super().__init__(**kwargs)
-        self.vocabulary = None if movies is None else movies['movie_id'].unique().astype(str)
+class EnhancedRecommender(tf.keras.Model):
+    def __init__(self, trainable=True, dtype=None, **kwargs):
+        super().__init__(trainable=trainable, dtype=dtype, **kwargs)
         
-        # Initialize layers to match training architecture
-        self.movie_embedding = tf.keras.Sequential([
-            tf.keras.layers.StringLookup(
-                vocabulary=self.vocabulary,
-                mask_token=None),
-            tf.keras.layers.Embedding(
-                input_dim=len(self.vocabulary) + 1 if self.vocabulary is not None else 1000,
-                output_dim=32)
-        ])
+        # Dropout layers
+        self.dropout1 = tf.keras.layers.Dropout(0.2)
+        self.dropout2 = tf.keras.layers.Dropout(0.1)
+        self.dropout3 = tf.keras.layers.Dropout(0.15)
         
-        self.genre_embedding = tf.keras.Sequential([
+        self.genre_matching = tf.keras.Sequential([
+            tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES) * 2,)),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(32)
+            tf.keras.layers.Dense(1)
         ])
         
-        self.rating_predictor = tf.keras.Sequential([
+        self.preference_net = tf.keras.Sequential([
+            tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES),)),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.Dropout(0.3),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu')
+        ])
+        
+        self.movie_net = tf.keras.Sequential([
+            tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES),)),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.Dropout(0.3),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu')
+        ])
+        
+        self.metadata_net = tf.keras.Sequential([
+            tf.keras.layers.InputLayer(input_shape=(3,)),
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dense(32, activation='relu'),
-            tf.keras.layers.Dense(16, activation='relu'),
+            tf.keras.layers.Dense(16, activation='relu')
+        ])
+        
+        self.match_net = tf.keras.Sequential([
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu'),
             tf.keras.layers.Dense(1)
         ])
 
-    def call(self, inputs):
-        movie_emb = self.movie_embedding(inputs['movieId'])
-        genre_emb = self.genre_embedding(inputs['genre_preferences'])
-        combined = tf.concat([movie_emb, genre_emb], axis=1)
-        return self.rating_predictor(combined)
+    def call(self, inputs, training=True):
+        genre_concat = tf.concat([inputs['user_preferences'], inputs['movie_genres']], axis=1)
+        genre_match_score = self.genre_matching(genre_concat)
+        
+        pref_features = self.preference_net(inputs['user_preferences'])
+        pref_features = self.dropout1(pref_features, training=training)
+        
+        movie_features = self.movie_net(inputs['movie_genres'])
+        movie_features = self.dropout2(movie_features, training=training)
+        
+        metadata = tf.concat([inputs['year'], inputs['rating'], inputs['popularity']], axis=1)
+        metadata_features = self.metadata_net(metadata)
+        metadata_features = self.dropout3(metadata_features, training=training)
+        
+        combined = tf.concat([
+            pref_features,
+            movie_features,
+            metadata_features,
+            genre_match_score * 0.1
+        ], axis=1)
+        
+        return self.match_net(combined)
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            'vocabulary': self.vocabulary.tolist() if self.vocabulary is not None else None
-        })
         return config
 
     @classmethod
     def from_config(cls, config):
-        # Convert vocabulary back to numpy array if it exists
-        if config['vocabulary'] is not None:
-            config['vocabulary'] = np.array(config['vocabulary'])
         return cls(**config)
     
