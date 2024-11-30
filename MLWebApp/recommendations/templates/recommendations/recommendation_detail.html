@@ -4,6 +4,7 @@
 <div class="container mt-5">
     <h2 class="text-center">Recommendation for {{ recommendation.user.username }}</h2>
     <p class="text-center"><strong>Date Created:</strong> {{ recommendation.date_created | date:"F j, Y, g:i a" }}</p>
+    <p class="text-center"><strong>Preferences:</strong> {{ recommendation.preference }}</p>
     
     <h3 class="mt-4">Recommended Movies:</h3>
     <ul class="list-group">

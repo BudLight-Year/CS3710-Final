@@ -21,7 +21,21 @@ class Command(BaseCommand):
         movies_df = pd.read_csv(movies_csv_path)
         ratings_df = pd.read_csv(ratings_csv_path)
         
-        # Print ratings information first
+        # Extract year from title
+        self.stdout.write('Extracting years from titles...')
+        movies_df['year'] = pd.to_numeric(
+            movies_df['title'].str.extract(r'\((\d{4})\)', expand=False),
+            errors='coerce'
+        )
+        
+        # Fill missing years with median
+        median_year = int(movies_df['year'].median())
+        movies_df['year'] = movies_df['year'].fillna(median_year).astype(int)
+        
+        self.stdout.write(f'Year range: {movies_df["year"].min()} to {movies_df["year"].max()}')
+        self.stdout.write(f'Median year: {median_year}')
+        
+        # Print ratings information
         self.stdout.write('\nRatings Dataset Information:')
         self.stdout.write(f"Total number of ratings: {len(ratings_df):,}")
         self.stdout.write(f"Number of unique users: {ratings_df['userId'].nunique():,}")
@@ -80,7 +94,8 @@ class Command(BaseCommand):
                 title=row['title'],
                 genres=row['genres'],
                 mean=float(row['mean_rating']),
-                count=int(row['rating_count'])
+                count=int(row['rating_count']),
+                year=int(row['year'])  # Add year to the Movie creation
             )
             for index, row in movies_df.iterrows()
         ]
@@ -94,13 +109,17 @@ class Command(BaseCommand):
         self.stdout.write(f"Movies with ratings: {len(movies_df[movies_df['rating_count'] > 0]):,}")
         self.stdout.write(f"Average rating: {movies_df['mean_rating'].mean():.2f}")
         self.stdout.write(f"Average number of ratings: {movies_df['rating_count'].mean():.2f}")
+        self.stdout.write('\nYear Statistics:')
+        self.stdout.write(f"Earliest year: {movies_df['year'].min()}")
+        self.stdout.write(f"Latest year: {movies_df['year'].max()}")
+        self.stdout.write(f"Most common year: {movies_df['year'].mode().iloc[0]}")
         
         # Get top 5 most rated movies
         top_rated = movies_df.nlargest(5, 'rating_count')
         self.stdout.write('\nTop 5 Most Rated Movies:')
         for _, movie in top_rated.iterrows():
             self.stdout.write(
-                f"{movie['title']}: {int(movie['rating_count']):,} ratings "
+                f"{movie['title']} ({movie['year']}): {int(movie['rating_count']):,} ratings "
                 f"(avg rating: {movie['mean_rating']:.2f})"
             )
             

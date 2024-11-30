@@ -7,11 +7,13 @@ from keras.models import load_model
 import tensorflow as tf
 import numpy as np
 import os
-from .models import Feedback, Movie, MovieGenreModel, Recommendation
+from .models import EnhancedRecommender, Feedback, Movie, Recommendation
 import pandas as pd
 from django.views.generic import ListView
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator 
+import time
+from django.db.models import Avg, Count
 
 
 GENRE_CHOICES = [
@@ -32,45 +34,53 @@ class RecommendationEngineView(LoginRequiredMixin, View):
     def load_model(self):
         print("Starting model loading process...")
         
-        # Get movies data and create genre columns
+        # Load movies data - using only fields from your Movie model
         movies_data = pd.DataFrame(
-            list(Movie.objects.values('movie_id', 'title', 'genres', 'mean', 'count'))
+            list(Movie.objects.values('movie_id', 'title', 'genres', 'mean', 'count', 'year'))
         )
-        movies_data['movie_id'] = movies_data['movie_id'].astype(str)
         
-        # Convert genres string to binary columns
+        # Create genre columns from your GENRE_CHOICES
+        genres_list = movies_data['genres'].str.get_dummies(sep='|')
+        
+        # Ensure all GENRE_CHOICES exist as columns
         for genre in GENRE_CHOICES:
-            movies_data[genre] = movies_data['genres'].str.contains(genre, regex=False).astype(float)
+            if genre not in genres_list.columns:
+                genres_list[genre] = 0
+                
+        # Add genre columns to dataframe
+        movies_data = pd.concat([
+            movies_data,
+            genres_list[GENRE_CHOICES].astype(np.float32)
+        ], axis=1)
+        
+        # Add normalized features needed by model
+        movies_data['year_normalized'] = (movies_data['year'] - movies_data['year'].min()) / (
+            movies_data['year'].max() - movies_data['year'].min())
+        
+        max_ratings = movies_data['count'].max()
+        movies_data['popularity'] = (
+            0.3 * movies_data['count'].div(max_ratings) +
+            0.7 * movies_data['mean'].div(5.0)
+        ).astype(np.float32)
         
         self.movies_df = movies_data
         
-        model_path = os.path.join(os.path.dirname(__file__), 'genreModel.keras')
-        
+        base_dir = os.path.dirname(__file__)
         try:
-            # Create model instance with movies data
-            self.model = MovieGenreModel(movies=movies_data)
-            
-            # Load saved weights
-            self.model.load_weights(model_path)
-            
-            # Compile model with same parameters as training
-            self.model.compile(
-                optimizer=tf.keras.optimizers.Adam(0.001),
-                loss=tf.keras.losses.MeanSquaredError()
+            self.model = tf.keras.models.load_model(
+                os.path.join(base_dir, 'movie_recommender.keras'),
+                custom_objects={'EnhancedRecommender': EnhancedRecommender}
             )
-            
             print("Model loaded successfully!")
-            
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
 
     def prepare_genre_preferences(self, preference):
-        """Prepare genre preferences with correct shape"""
-        # Create a zero array for all genres
-        genre_preferences = np.zeros(len(GENRE_CHOICES))
+        """Convert Preference model data to model input format"""
+        genre_preferences = np.zeros(len(GENRE_CHOICES), dtype=np.float32)
         
-        # Get all selected genres
+        # Get selected genres from Preference model fields
         selected_genres = [
             preference.genre1,
             preference.genre2,
@@ -79,145 +89,99 @@ class RecommendationEngineView(LoginRequiredMixin, View):
             preference.genre5
         ]
         
-        # Remove None, empty values or empty strings
-        selected_genres = [g for g in selected_genres if g and g.strip()]
-        print(f"\nSelected genres: {selected_genres}")
+        # Remove empty/None values
+        selected_genres = [g for g in selected_genres if g]
         
-        # Set 1 for selected genres using the correct index
+        # Set selected genres to 1
         for genre in selected_genres:
-            try:
-                index = GENRE_CHOICES.index(genre)
-                genre_preferences[index] = 1
-                print(f"Setting preference 1 for {genre} at index {index}")
-            except ValueError:
-                print(f"Genre {genre} not found in GENRE_CHOICES")
-                continue
+            if genre in GENRE_CHOICES:
+                idx = GENRE_CHOICES.index(genre)
+                genre_preferences[idx] = 1
         
-        # If include_other_genres is False, set -1 for unselected genres
+        # If not including other genres, set unselected to -1
         if not preference.include_other_genres:
             genre_preferences = np.where(genre_preferences == 0, -1, genre_preferences)
-            
-        print("\nGenre preferences array shape:", genre_preferences.shape)
-        print("Generated genre preferences array:", genre_preferences)
-        print("Genres with preference 1:", [GENRE_CHOICES[i] for i in range(len(genre_preferences)) if genre_preferences[i] == 1])
         
-        # Ensure shape is 1D array of length num_genres
-        genre_preferences = genre_preferences.astype(np.float32)
-        assert len(genre_preferences.shape) == 1, "Genre preferences should be 1D array"
-        assert genre_preferences.shape[0] == len(GENRE_CHOICES), f"Expected {len(GENRE_CHOICES)} genres, got {genre_preferences.shape[0]}"
-        
-        return genre_preferences, selected_genres
+        return genre_preferences
 
-    def get_recommendations(self, genre_preferences, top_k=10, min_ratings=50):
-        """Exact implementation from training script with shape verification"""
-        print("\nStarting recommendation generation...")
+    def get_recommendations(self, genre_preferences, top_k=10):
+        """Get recommendations matching test script implementation"""
+        print("Starting recommendation generation...")
         
-        # Filter movies with minimum number of ratings
-        popular_movies = self.movies_df[self.movies_df['count'] >= min_ratings].copy()
+        # Convert 1's to selected genres list
+        selected_genres = [
+            genre for i, genre in enumerate(GENRE_CHOICES) 
+            if genre_preferences[i] == 1
+        ]
+        print(f"Selected genres: {selected_genres}")
         
-        if len(popular_movies) == 0:
-            print("No movies found with minimum rating count. Reducing minimum ratings requirement.")
-            popular_movies = self.movies_df[self.movies_df['count'] > 0].copy()
+        # Convert -1's to excluded genres list (matches test script's excluded_genres parameter)
+        excluded_genres = [
+            genre for i, genre in enumerate(GENRE_CHOICES) 
+            if genre_preferences[i] == -1
+        ]
+        if excluded_genres:
+            print(f"Excluding movies with genres: {excluded_genres}")
         
-        # Verify shapes before creating features
-        print("\nShape information:")
-        print(f"Number of movies being processed: {len(popular_movies)}")
-        print(f"Genre preferences shape: {genre_preferences.shape}")
+        # Filter out movies with excluded genres
+        filtered_df = self.movies_df.copy()
+        if excluded_genres:
+            exclude_mask = ~filtered_df[excluded_genres].any(axis=1)
+            filtered_df = filtered_df[exclude_mask]
+            print(f"Filtered from {len(self.movies_df)} to {len(filtered_df)} movies after excluding genres")
         
-        # Create features tensor with explicit shapes
-        genre_preferences_expanded = tf.repeat(
-            tf.convert_to_tensor([genre_preferences], dtype=tf.float32),
-            repeats=[len(popular_movies)],
-            axis=0
-        )
+        # Filter for minimum ratings like test script
+        filtered_df = filtered_df[filtered_df['count'] >= 50]
         
-        features = {
-            'movieId': tf.constant(popular_movies['movie_id'].values),
-            'genre_preferences': genre_preferences_expanded
-        }
-        
-        # Verify feature shapes
-        print("\nFeature shapes:")
-        print(f"movieId shape: {features['movieId'].shape}")
-        print(f"genre_preferences shape: {features['genre_preferences'].shape}")
-        
-        predicted_scores = self.model(features)
-        print(f"Predicted scores shape: {predicted_scores.shape}")
-        
-        # Create preference boost scores exactly as in training
-        preference_scores = np.zeros(len(popular_movies))
-        for idx, pref in enumerate(genre_preferences):
-            genre_name = GENRE_CHOICES[idx]
-            if pref == 1:  # Preferred genres get a boost
-                preference_scores += popular_movies[genre_name].values * 0.5
-                print(f"Boosting scores for {genre_name}")
-            elif pref == -1:  # Avoided genres get a penalty
-                preference_scores -= popular_movies[genre_name].values * 1.0
-                print(f"Penalizing scores for {genre_name}")
-        
-        # Normalize preference scores to 0-1 range
-        if np.ptp(preference_scores) > 0:
-            preference_scores = (preference_scores - np.min(preference_scores)) / (np.ptp(preference_scores))
-        
-        # Convert all values to float32
-        predicted_scores = tf.cast(predicted_scores, tf.float32)
-        avg_ratings = tf.cast(popular_movies['mean'].values, tf.float32)
-        preference_scores = tf.cast(preference_scores, tf.float32)
-        
-        # Normalize model predictions and average ratings
-        predicted_scores = (predicted_scores - tf.reduce_min(predicted_scores)) / (
-            tf.reduce_max(predicted_scores) - tf.reduce_min(predicted_scores) + 1e-8)
-        avg_ratings_normalized = (avg_ratings - tf.reduce_min(avg_ratings)) / (
-            tf.reduce_max(avg_ratings) - tf.reduce_min(avg_ratings) + 1e-8)
-        
-        # Combine scores with exact same weights as training
-        final_scores = (
-            0.4 * tf.squeeze(predicted_scores) +  # Model predictions
-            0.3 * avg_ratings_normalized +        # Historical ratings
-            0.3 * preference_scores               # Genre preferences
-        )
-        
-        print("\nScore components:")
-        print(f"Model predictions range: {tf.reduce_min(predicted_scores):.3f} to {tf.reduce_max(predicted_scores):.3f}")
-        print(f"Avg ratings range: {tf.reduce_min(avg_ratings_normalized):.3f} to {tf.reduce_max(avg_ratings_normalized):.3f}")
-        print(f"Preference scores range: {tf.reduce_min(preference_scores):.3f} to {tf.reduce_max(preference_scores):.3f}")
-        print(f"Final scores range: {tf.reduce_min(final_scores):.3f} to {tf.reduce_max(final_scores):.3f}")
-        
-        # Create and apply avoidance mask for explicitly avoided genres
-        avoid_mask = np.ones(len(popular_movies), dtype=bool)
-        for idx, pref in enumerate(genre_preferences):
-            if pref == -1:
-                genre_name = GENRE_CHOICES[idx]
-                avoid_mask = avoid_mask & (popular_movies[genre_name] == 0)
-                print(f"Creating avoidance mask for {genre_name}")
-        
-        print(f"\nMovies remaining after avoidance mask: {np.sum(avoid_mask)}")
-        
-        final_scores = tf.where(
-            tf.constant(avoid_mask),
-            final_scores,
-            tf.fill(final_scores.shape, tf.float32.min)
-        )
-        
-        # Get top k movies
-        k = min(top_k, tf.reduce_sum(tf.cast(avoid_mask, tf.int32)))
-        if k == 0:
-            print("No movies found matching the avoidance criteria")
+        if len(filtered_df) == 0:
+            print("No movies match the criteria!")
             return None
         
-        print(f"\nSelecting top {k} movies...")
+        batch_size = 1000
+        all_scores = []
         
-        _, indices = tf.math.top_k(final_scores, k=k)
-        recommended_movies = popular_movies.iloc[indices.numpy()]
+        for i in range(0, len(filtered_df), batch_size):
+            batch_df = filtered_df.iloc[i:i+batch_size]
+            
+            batch_inputs = {
+                'user_preferences': tf.constant(np.repeat([genre_preferences], len(batch_df), axis=0), dtype=tf.float32),
+                'movie_genres': tf.constant(batch_df[GENRE_CHOICES].values, dtype=tf.float32),
+                'year': tf.constant(batch_df[['year_normalized']].values, dtype=tf.float32),
+                'rating': tf.constant(batch_df[['mean']].values / 5.0, dtype=tf.float32),
+                'popularity': tf.constant(batch_df[['popularity']].values, dtype=tf.float32)
+            }
+            
+            batch_scores = self.model(batch_inputs, training=True).numpy().flatten()
+            all_scores.extend(batch_scores)
         
-        print("\nRecommended movies:")
-        for _, movie in recommended_movies.iterrows():
-            print(f"{movie['title']}: Score={final_scores[indices[0]].numpy():.3f}, "
-                  f"Rating={movie['mean']:.1f} ({int(movie['count'])} ratings), "
-                  f"Genres={movie['genres']}")
+        scores = np.array(all_scores)
+        scores = (scores - scores.min()) / (scores.max() - scores.min() + 1e-10)
         
-        return recommended_movies
-
+        # Calculate weighted ratings matching test script
+        filtered_df['weighted_rating'] = filtered_df['mean'] * \
+            np.log1p(filtered_df['count']) / np.log1p(filtered_df['count'].max())
+        
+        # Combine scores with same weights as test script
+        scores = 0.7 * scores + 0.3 * filtered_df['weighted_rating'].values
+        
+        # Get top recommendations
+        top_indices = np.argsort(scores)[-top_k:][::-1]
+        recommendations = filtered_df.iloc[top_indices].copy()
+        recommendations['match_score'] = scores[top_indices]
+        recommendations['matched_genres'] = recommendations.apply(
+            lambda x: [g for g in selected_genres if x[g] == 1],
+            axis=1
+        )
+        
+        print("\nExample top recommendations:")
+        for _, movie in recommendations.head(3).iterrows():
+            print(f"{movie['title']}")
+            print(f"Rating: {movie['mean']:.1f} ({movie['count']} ratings)")
+            print(f"Genres: {movie['genres']}")
+            print(f"Match score: {movie['match_score']:.3f}\n")
+        
+        return recommendations[['movie_id', 'match_score']]
+    
     def get(self, request):
         form = PreferenceForm()
         return render(request, 'recommendations/recommendation_engine.html', {'form': form})
@@ -226,30 +190,29 @@ class RecommendationEngineView(LoginRequiredMixin, View):
         form = PreferenceForm(request.POST)
         if form.is_valid():
             preference = form.save(commit=False)
-            genre_preferences, _ = self.prepare_genre_preferences(preference)
+            genre_preferences = self.prepare_genre_preferences(preference)
             
             try:
-                # Get recommendations using exact training implementation
                 recommended_movies_df = self.get_recommendations(genre_preferences)
                 
                 if recommended_movies_df is None or len(recommended_movies_df) == 0:
                     form.add_error(None, "No movies found matching your criteria. Try different preferences.")
                     return render(request, 'recommendations/recommendation_engine.html', {'form': form})
                 
-                # Save preference and create recommendation
+                # Save preference
                 preference.save()
+                
+                # Create recommendation
                 recommendation = Recommendation.objects.create(
                     user=request.user,
                     preference=preference
                 )
                 
-                # Get Movie objects for recommended movies
-                movie_objects = Movie.objects.filter(
+                # Get Movie objects and add to recommendation
+                recommended_movies = Movie.objects.filter(
                     movie_id__in=recommended_movies_df['movie_id'].tolist()
                 )
-                recommendation.movies.add(*movie_objects)
-                
-                print("Final recommendations:", [m.title for m in movie_objects])
+                recommendation.movies.add(*recommended_movies)
                 
                 return redirect('recommendations:recommendation_detail', recommendation_id=recommendation.id)
                 
