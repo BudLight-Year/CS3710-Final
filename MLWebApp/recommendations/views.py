@@ -176,8 +176,12 @@ class RecommendationEngineView(LoginRequiredMixin, View):
                 print(f"{key} contains nan: {tf.reduce_any(tf.math.is_nan(value))}")
                 if tf.reduce_any(tf.math.is_nan(value)):
                     print(f"First few values: {value[:5]}")
-            
+
+            # Need training to be true to let dropouts work.
+            # but training being on causes model to not work appropiately
             batch_scores = self.model.predict(batch_inputs, verbose=0).flatten()
+            #batch_scores = self.model(batch_inputs, training=True).numpy().flatten()
+
             print("Batch predictions contain nan:", np.any(np.isnan(batch_scores)))
             all_scores.extend(batch_scores)
         
