@@ -14,7 +14,7 @@ GENRE_CHOICES = [
     'Horror', 'IMAX', 'Musical', 'Mystery', 'Romance', 'Sci-Fi',
     'Thriller', 'War', 'Western'
 ]
-
+# Movie model to load MoviLens movie data into
 class Movie(models.Model):
     movie_id = models.IntegerField(primary_key=True)
     title = models.CharField(max_length=255)
@@ -26,6 +26,7 @@ class Movie(models.Model):
     def __str__(self):
         return self.title
 
+    # Use this for user view, shows rounded mean 
     def rounded_mean(self, decimals=2):
         """Return the average rating rounded to the specified number of decimal places."""
         return round(self.mean, decimals)
@@ -34,7 +35,7 @@ class Movie(models.Model):
     
 
 
-
+# Model to save recommendations into
 class Recommendation(models.Model):
     user = models.ForeignKey('user.Myuser', on_delete=models.DO_NOTHING, related_name="recommendations")
     preference = models.ForeignKey('recommendations.Preference', on_delete=models.CASCADE, related_name="recommendation")
@@ -45,7 +46,7 @@ class Recommendation(models.Model):
     def __str__(self): 
         return f"Recommendation for {self.user.username}"
 
-
+# Model to save user preference into
 class Preference(models.Model):
     genre1 = models.CharField(max_length=255, blank=True, null=True)
     genre2 = models.CharField(max_length=255, blank=True, null=True)
@@ -63,11 +64,7 @@ class Preference(models.Model):
         selected_genres = [g for g in genres if g]
         return f"Preference: {', '.join(selected_genres)}"
 
-
-# Do this one last
-class SimilarMovie(models.Model):
-    pass
-
+# Logs user feedback on how good recommendation was.
 class Feedback(models.Model):
     feedback = models.BooleanField()
     recommendation = models.ForeignKey('recommendations.Recommendation', on_delete=models.CASCADE, related_name='feedback')
@@ -79,6 +76,7 @@ class Feedback(models.Model):
 #                        # 
 #------------------------#
 
+# Multi Layered Neural Network which takes user genre preferences and matches movies primarily based on genres and ratings
 @register_keras_serializable()
 class EnhancedRecommender(tf.keras.Model):
     def __init__(self, trainable=True, dtype=None, **kwargs):
@@ -89,6 +87,7 @@ class EnhancedRecommender(tf.keras.Model):
         self.dropout2 = tf.keras.layers.Dropout(0.1)
         self.dropout3 = tf.keras.layers.Dropout(0.15)
         
+        # Matches genres to user preference
         self.genre_matching = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES) * 2,)),
             tf.keras.layers.Dense(128, activation='relu'),
@@ -97,6 +96,7 @@ class EnhancedRecommender(tf.keras.Model):
             tf.keras.layers.Dense(1)
         ])
         
+        # Processes just user preferences
         self.preference_net = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES),)),
             tf.keras.layers.Dense(256, activation='relu'),
@@ -106,6 +106,7 @@ class EnhancedRecommender(tf.keras.Model):
             tf.keras.layers.Dense(64, activation='relu')
         ])
         
+        # Processes all genres
         self.movie_net = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(len(GENRE_CHOICES),)),
             tf.keras.layers.Dense(256, activation='relu'),
@@ -115,6 +116,7 @@ class EnhancedRecommender(tf.keras.Model):
             tf.keras.layers.Dense(64, activation='relu')
         ])
         
+        # Processes metadata like year and ratings
         self.metadata_net = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(3,)),
             tf.keras.layers.Dense(64, activation='relu'),
@@ -123,6 +125,7 @@ class EnhancedRecommender(tf.keras.Model):
             tf.keras.layers.Dense(16, activation='relu')
         ])
         
+        # Combines all previous nets
         self.match_net = tf.keras.Sequential([
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dropout(0.2),
@@ -132,19 +135,24 @@ class EnhancedRecommender(tf.keras.Model):
         ])
 
     def call(self, inputs, training=True):
+        # Concatenate user preferences and movie genres for genre matching
         genre_concat = tf.concat([inputs['user_preferences'], inputs['movie_genres']], axis=1)
         genre_match_score = self.genre_matching(genre_concat)
         
+        # Process user preferences
         pref_features = self.preference_net(inputs['user_preferences'])
         pref_features = self.dropout1(pref_features, training=training)
         
+        # Process movie genres
         movie_features = self.movie_net(inputs['movie_genres'])
         movie_features = self.dropout2(movie_features, training=training)
         
+        # Concatenate metadata features
         metadata = tf.concat([inputs['year'], inputs['rating'], inputs['popularity']], axis=1)
         metadata_features = self.metadata_net(metadata)
         metadata_features = self.dropout3(metadata_features, training=training)
-        
+
+        # Combine all features and genre match score for final matching 
         combined = tf.concat([
             pref_features,
             movie_features,
