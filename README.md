@@ -11,6 +11,14 @@
 
 This project utilizes a Keras neural network movie recommender inside a Django web application.
 
+The model was trained on the MovieLens 32M dataset at https://grouplens.org/datasets/movielens/32m.
+
+The neural network has multiple subnetworks that each process things like genre matching and similarities, user preferences, and movie metadata. The final subnetwork combines all the previous networks to score movies on how well they are a match for the user based on their preferences.
+
+The front end for the machine learning model can be found in MLWebApp/recommendations/views.py.
+The functionality of the machine learning model can be fund in MLWebApp/recommendations/utils.py.
+The Machine learning model class definition ca be found in MLWebApp/recommendations/models.py, at the bottom of the file.
+
 ## Setup
 
 1. **Ensure you have Python installed on your machine**.
