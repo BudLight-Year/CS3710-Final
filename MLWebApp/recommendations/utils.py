@@ -2,8 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from recommendations.models import EnhancedRecommender, Movie
-
+from recommendations.models import EnhancedRecommender, Movie  # Ensure the class is imported here
 
 GENRE_CHOICES = [
     'Action', 'Adventure', 'Animation', 'Children', 'Comedy',
@@ -11,7 +10,6 @@ GENRE_CHOICES = [
     'Horror', 'IMAX', 'Musical', 'Mystery', 'Romance', 'Sci-Fi',
     'Thriller', 'War', 'Western'
 ]
-
 
 def load_model():
     print("Starting model loading process...")
@@ -43,8 +41,8 @@ def load_model():
 
         base_dir = os.path.dirname(__file__)
         model = tf.keras.models.load_model(
-            os.path.join(base_dir, 'movie_recommender.keras'),
-            custom_objects={'EnhancedRecommender': EnhancedRecommender},
+            os.path.join(base_dir, 'movie_recommender_newest.keras'), 
+            custom_objects={'EnhancedRecommender': EnhancedRecommender}, 
             compile=False
         )
         print("Model loaded successfully!")
@@ -56,6 +54,7 @@ def load_model():
     except Exception as e:
         print(f"Error loading model: {e}")
         return None, None
+
 
 
 def prepare_genre_preferences(preference):
@@ -87,7 +86,7 @@ def prepare_genre_preferences(preference):
     return genre_preferences
 
 def get_recommendations(model, movies_df, genre_preferences, top_k=10):
-    """Get recommendations matching test script implementation with added randomization"""
+    """Get recommendations matching the trained model implementation with added randomization"""
     print("Starting recommendation generation...")
     
     # Convert 1's to selected genres list
@@ -125,11 +124,11 @@ def get_recommendations(model, movies_df, genre_preferences, top_k=10):
     for i in range(0, len(filtered_df), batch_size):
         batch_df = filtered_df.iloc[i:i+batch_size]
         
+        # Updated input dictionary to match trained model
         batch_inputs = {
             'user_preferences': tf.constant(np.repeat([genre_preferences], len(batch_df), axis=0), dtype=tf.float32),
             'movie_genres': tf.constant(batch_df[GENRE_CHOICES].values, dtype=tf.float32),
             'year': tf.constant(batch_df[['year_normalized']].values, dtype=tf.float32),
-            'rating': tf.constant(batch_df[['mean']].values / 5.0, dtype=tf.float32),
             'popularity': tf.constant(batch_df[['popularity']].values, dtype=tf.float32)
         }
         
@@ -146,15 +145,15 @@ def get_recommendations(model, movies_df, genre_preferences, top_k=10):
         np.log1p(filtered_df['count']) / np.log1p(filtered_df['count'].max())
     
     # Randomization 1: Add noise to model scores during combination
-    noise_mult = np.random.uniform(0.9, 1.1, size=scores.shape) # adjust uniform range to adjust randomness
+    noise_mult = np.random.uniform(0.9, 1.1, size=scores.shape)
     scores = 0.7 * scores * noise_mult + 0.3 * filtered_df['weighted_rating'].values
     
     # Randomization 2: Add gaussian noise to final scores
-    noise_add = np.random.normal(0, 0.05, size=scores.shape)  # 0.05 standard deviation for moderate randomness
+    noise_add = np.random.normal(0, 0.05, size=scores.shape)
     scores = scores + noise_add
     
     # Randomization 3: Get more candidates than needed and sample
-    top_k_multiplier = 3  # Get 3x the movies we need
+    top_k_multiplier = 3
     candidate_count = min(top_k * top_k_multiplier, len(scores))
     top_indices = np.argsort(scores)[-candidate_count:][::-1]
     top_indices = np.random.choice(top_indices, size=min(top_k, len(top_indices)), replace=False)
