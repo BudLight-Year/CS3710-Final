@@ -80,6 +80,7 @@ class RecommendationEngineView(LoginRequiredMixin, View):
                 
         return render(request, 'recommendations/recommendation_engine.html', {'form': form})
 
+
     
 # Shows single recommendation
 class RecommendationDetailView(View):
