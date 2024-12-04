@@ -111,8 +111,14 @@ def get_recommendations(model, movies_df, genre_preferences, top_k=10):
         filtered_df = filtered_df[exclude_mask]
         print(f"Filtered from {len(movies_df)} to {len(filtered_df)} movies after excluding genres")
     
+    # NEW: Filter for movies that have at least one selected genre
+    if selected_genres:
+        genre_mask = filtered_df[selected_genres].all(axis=1)
+        filtered_df = filtered_df[genre_mask]
+        print(f"Filtered to {len(filtered_df)} movies that have at least one selected genre")
+    
     # Filter for minimum ratings
-    filtered_df = filtered_df[filtered_df['count'] >= 50]
+    filtered_df = filtered_df[filtered_df['count'] >= 5]
     
     if len(filtered_df) == 0:
         print("No movies match the criteria!")
