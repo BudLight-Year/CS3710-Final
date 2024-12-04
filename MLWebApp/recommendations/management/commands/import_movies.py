@@ -1,6 +1,7 @@
 import pandas as pd
 from django.core.management.base import BaseCommand
 from recommendations.models import Movie
+import requests
 
 class Command(BaseCommand):
     help = 'Import movies from movies.csv and ratings.csv files'
@@ -10,9 +11,38 @@ class Command(BaseCommand):
         parser.add_argument('ratings_csv_path', type=str, help='The path to the ratings CSV file')
 
     def handle(self, *args, **kwargs):
-        movies_csv_path = kwargs['movies_csv_path']
-        ratings_csv_path = kwargs['ratings_csv_path']
-        self.import_movies_from_csvs(movies_csv_path, ratings_csv_path)
+        # Get URLs from environment variables
+        movies_url = os.getenv('MOVIES_CSV_URL')
+        ratings_url = os.getenv('RATINGS_CSV_URL')
+        
+        if not movies_url or not ratings_url:
+            raise ValueError(
+                "Missing required environment variables. Please set "
+                "MOVIES_CSV_URL and RATINGS_CSV_URL"
+            )
+            
+        self.stdout.write('Downloading CSV files from Google Drive...')
+        
+        # Download and read the CSV files
+        try:
+            # Download movies CSV
+            movies_response = requests.get(movies_url)
+            movies_response.raise_for_status()
+            movies_df = pd.read_csv(pd.io.common.StringIO(movies_response.text))
+            
+            # Download ratings CSV
+            ratings_response = requests.get(ratings_url)
+            ratings_response.raise_for_status()
+            ratings_df = pd.read_csv(pd.io.common.StringIO(ratings_response.text))
+            
+        except requests.exceptions.RequestException as e:
+            self.stdout.write(self.style.ERROR(f'Error downloading CSV files: {str(e)}'))
+            return
+        except pd.errors.EmptyDataError:
+            self.stdout.write(self.style.ERROR('Downloaded CSV files are empty'))
+            return
+        
+        self.stdout.write('Successfully downloaded CSV files')
 
     def import_movies_from_csvs(self, movies_csv_path, ratings_csv_path):
         self.stdout.write('Reading CSV files...')
