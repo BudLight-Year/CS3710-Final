@@ -20,9 +20,15 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from .views import index
 from .views import about
+from django.http import HttpResponse
 
+
+
+def health_check(request):
+    return HttpResponse("OK")
 
 urlpatterns = [
+    path('health/', health_check),
     path('', index, name='index'),
     path('about', about, name='about'),
     path('admin/', admin.site.urls),

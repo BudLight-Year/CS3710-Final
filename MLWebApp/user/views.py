@@ -11,8 +11,7 @@ from user.models import Profile
 from user.forms import  UpdateAccountForm, UpdateProfileForm
 
 
-def health_check(request):
-    return HttpResponse("OK")
+
 
 
 def index(request):

@@ -3,12 +3,11 @@ from . import views
 from django.contrib.auth import views as auth_views
 from allauth.account.views import login, logout, signup
 from allauth.account.views import PasswordResetView, PasswordResetDoneView, PasswordResetFromKeyView, PasswordResetFromKeyDoneView, ConfirmEmailView
-from .views import CustomPasswordChangeView, ProfileView, health_check
+from .views import CustomPasswordChangeView, ProfileView
 from .forms import CustomAuthenticationForm
 
 app_name = "user"
 urlpatterns = [
-    path('health/', health_check),
     path("", views.index, name="index"),
     path('signup/', signup, name='account_signup'),
     path('login/', login, name='account_login'),
