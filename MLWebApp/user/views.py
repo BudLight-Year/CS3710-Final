@@ -1,7 +1,7 @@
 
 from django.contrib.auth import update_session_auth_hash, get_user_model
 from django.contrib.auth.forms import  PasswordChangeForm
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse
 from django.shortcuts import render, redirect
 from allauth.account.views import PasswordChangeView
 from django.contrib import messages
@@ -9,6 +9,10 @@ from django.views.generic import DetailView
 from django.contrib.auth.decorators import login_required
 from user.models import Profile
 from user.forms import  UpdateAccountForm, UpdateProfileForm
+
+
+def health_check(request):
+    return HttpResponse("OK")
 
 
 def index(request):
