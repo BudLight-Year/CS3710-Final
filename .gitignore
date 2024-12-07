@@ -171,8 +171,8 @@ cython_debug/
 # Protect env vars
 .env
 
-*.csv
-
+movies.csv
+ratings.csv
 
 # Static files collected
 staticfiles/
