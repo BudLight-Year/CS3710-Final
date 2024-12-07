@@ -1,4 +1,5 @@
 import os
+import psutil
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -12,15 +13,23 @@ GENRE_CHOICES = [
 ]
 
 def load_model():
+
+    process = psutil.Process(os.getpid())
+    mem_before = process.memory_info().rss / 1024 / 1024
+    print(f"Memory before loading: {mem_before:.2f} MB")
+
     print("Starting model loading process...")
 
     try:
+        # Initial movie data load
         movies_data = pd.DataFrame(
             list(Movie.objects.values('movie_id', 'title', 'genres', 'mean', 'count', 'year'))
         )
+        mem_after_initial = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after initial data load: {mem_after_initial:.2f} MB")
 
+        # Genre processing
         genres_list = movies_data['genres'].str.get_dummies(sep='|')
-
         for genre in GENRE_CHOICES:
             if genre not in genres_list.columns:
                 genres_list[genre] = 0
@@ -29,7 +38,10 @@ def load_model():
             movies_data,
             genres_list[GENRE_CHOICES].astype(np.float32)
         ], axis=1)
+        mem_after_genres = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after genre processing: {mem_after_genres:.2f} MB")
 
+        # Normalization and features
         movies_data['year_normalized'] = (movies_data['year'] - movies_data['year'].min()) / (
             movies_data['year'].max() - movies_data['year'].min())
 
@@ -38,14 +50,27 @@ def load_model():
             0.3 * movies_data['count'].div(max_ratings) +
             0.7 * movies_data['mean'].div(5.0)
         ).astype(np.float32)
+        mem_after_features = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after feature processing: {mem_after_features:.2f} MB")
 
+        # Load model
         base_dir = os.path.dirname(__file__)
         model = tf.keras.models.load_model(
             os.path.join(base_dir, 'movie_recommender_newest.keras'), 
             custom_objects={'EnhancedRecommender': EnhancedRecommender}, 
             compile=False
         )
-        print("Model loaded successfully!")
+        mem_after_model = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after loading model: {mem_after_model:.2f} MB")
+
+        print("\nMemory usage summary:")
+        print(f"Initial data loading: {mem_after_initial - mem_before:.2f} MB")
+        print(f"Genre processing: {mem_after_genres - mem_after_initial:.2f} MB")
+        print(f"Feature processing: {mem_after_features - mem_after_genres:.2f} MB")
+        print(f"Model loading: {mem_after_model - mem_after_features:.2f} MB")
+        print(f"Total memory increase: {mem_after_model - mem_before:.2f} MB")
+
+        print("\nModel loaded successfully!")
         print("Model architecture:")
         model.summary()
 
@@ -53,8 +78,7 @@ def load_model():
 
     except Exception as e:
         print(f"Error loading model: {e}")
-        return None, None
-
+        return None, None   
 
 
 def prepare_genre_preferences(preference):

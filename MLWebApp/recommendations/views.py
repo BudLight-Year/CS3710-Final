@@ -29,11 +29,17 @@ GENRE_CHOICES = [
 
 
 class RecommendationEngineView(LoginRequiredMixin, View):
+    # Class level attributes - loaded once per worker process
+    model = None
+    movies_df = None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.model, self.movies_df = load_model()
-        if self.model is None or self.movies_df is None:
-            raise Exception("Model or movies data could not be loaded.")
+        # Only load if not already loaded in this worker
+        if RecommendationEngineView.model is None:
+            RecommendationEngineView.model, RecommendationEngineView.movies_df = load_model()
+        if RecommendationEngineView.model is None:
+            raise Exception("Model could not be loaded.")
 
     def prepare_genre_preferences(self, preference):
         return prepare_genre_preferences(preference)

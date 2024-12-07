@@ -1,1 +1,1 @@
-web: gunicorn MLWebApp.MLWebApp.wsgi
+web: gunicorn MLWebApp.MLWebApp.wsgi --workers=1
