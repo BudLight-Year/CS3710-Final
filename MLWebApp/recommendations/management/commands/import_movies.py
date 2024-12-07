@@ -37,6 +37,8 @@ class Command(BaseCommand):
                 ratings_df = pd.read_csv(pd.io.common.StringIO(ratings_response.text))
                 
                 self.stdout.write('Successfully downloaded CSV files')
+                # After downloading ratings CSV
+                self.stdout.write(f"Ratings columns: {ratings_df.columns.tolist()}")
                 # Process the downloaded dataframes
                 self.process_data(movies_df, ratings_df)
                 
