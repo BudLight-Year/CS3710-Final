@@ -1,55 +1,70 @@
 import pandas as pd
+import os
+import requests
 from django.core.management.base import BaseCommand
 from recommendations.models import Movie
-import requests
+from django.db import transaction
 
 class Command(BaseCommand):
     help = 'Import movies from movies.csv and ratings.csv files'
 
     def add_arguments(self, parser):
-        parser.add_argument('movies_csv_path', type=str, help='The path to the movies CSV file')
-        parser.add_argument('ratings_csv_path', type=str, help='The path to the ratings CSV file')
+        # Make arguments optional since we might use URLs instead
+        parser.add_argument('--movies_csv_path', type=str, help='The path to the movies CSV file', required=False)
+        parser.add_argument('--ratings_csv_path', type=str, help='The path to the ratings CSV file', required=False)
 
     def handle(self, *args, **kwargs):
         # Get URLs from environment variables
         movies_url = os.getenv('MOVIES_CSV_URL')
         ratings_url = os.getenv('RATINGS_CSV_URL')
         
-        if not movies_url or not ratings_url:
-            raise ValueError(
-                "Missing required environment variables. Please set "
-                "MOVIES_CSV_URL and RATINGS_CSV_URL"
-            )
+        if movies_url and ratings_url:
+            self.stdout.write('Downloading CSV files from Google Drive...')
+            try:
+                # Download movies CSV
+                movies_response = requests.get(movies_url)
+                movies_response.raise_for_status()
+                movies_df = pd.read_csv(pd.io.common.StringIO(movies_response.text))
+                
+                # Download ratings CSV
+                ratings_response = requests.get(ratings_url)
+                ratings_response.raise_for_status()
+                ratings_df = pd.read_csv(pd.io.common.StringIO(ratings_response.text))
+                
+                self.stdout.write('Successfully downloaded CSV files')
+                # Process the downloaded dataframes
+                self.process_data(movies_df, ratings_df)
+                
+            except requests.exceptions.RequestException as e:
+                self.stdout.write(self.style.ERROR(f'Error downloading CSV files: {str(e)}'))
+                return
+            except pd.errors.EmptyDataError:
+                self.stdout.write(self.style.ERROR('Downloaded CSV files are empty'))
+                return
+        else:
+            # Use local files if URLs not provided
+            movies_csv_path = kwargs.get('movies_csv_path')
+            ratings_csv_path = kwargs.get('ratings_csv_path')
             
-        self.stdout.write('Downloading CSV files from Google Drive...')
-        
-        # Download and read the CSV files
-        try:
-            # Download movies CSV
-            movies_response = requests.get(movies_url)
-            movies_response.raise_for_status()
-            movies_df = pd.read_csv(pd.io.common.StringIO(movies_response.text))
+            if not movies_csv_path or not ratings_csv_path:
+                raise ValueError(
+                    "Either provide both CSV paths or set MOVIES_CSV_URL and RATINGS_CSV_URL environment variables"
+                )
             
-            # Download ratings CSV
-            ratings_response = requests.get(ratings_url)
-            ratings_response.raise_for_status()
-            ratings_df = pd.read_csv(pd.io.common.StringIO(ratings_response.text))
-            
-        except requests.exceptions.RequestException as e:
-            self.stdout.write(self.style.ERROR(f'Error downloading CSV files: {str(e)}'))
-            return
-        except pd.errors.EmptyDataError:
-            self.stdout.write(self.style.ERROR('Downloaded CSV files are empty'))
-            return
-        
-        self.stdout.write('Successfully downloaded CSV files')
+            try:
+                self.stdout.write('Reading local CSV files...')
+                movies_df = pd.read_csv(movies_csv_path)
+                ratings_df = pd.read_csv(ratings_csv_path)
+                self.process_data(movies_df, ratings_df)
+            except FileNotFoundError as e:
+                self.stdout.write(self.style.ERROR(f'Error reading CSV files: {str(e)}'))
+                return
+            except pd.errors.EmptyDataError:
+                self.stdout.write(self.style.ERROR('CSV files are empty'))
+                return
 
-    def import_movies_from_csvs(self, movies_csv_path, ratings_csv_path):
-        self.stdout.write('Reading CSV files...')
-        
-        # Read both CSV files
-        movies_df = pd.read_csv(movies_csv_path)
-        ratings_df = pd.read_csv(ratings_csv_path)
+    def process_data(self, movies_df, ratings_df):
+        self.stdout.write('Processing data...')
         
         # Extract year from title
         self.stdout.write('Extracting years from titles...')
@@ -125,13 +140,17 @@ class Command(BaseCommand):
                 genres=row['genres'],
                 mean=float(row['mean_rating']),
                 count=int(row['rating_count']),
-                year=int(row['year'])  # Add year to the Movie creation
+                year=int(row['year'])
             )
             for index, row in movies_df.iterrows()
         ]
         
-        # Bulk insert all Movie instances
-        Movie.objects.bulk_create(movies_list)
+        # Bulk create all Movie instances within a transaction
+        with transaction.atomic():
+            # Clear existing movies if any
+            Movie.objects.all().delete()
+            # Create new movies
+            Movie.objects.bulk_create(movies_list)
         
         # Print detailed statistics
         self.stdout.write('\nFinal Dataset Statistics:')
@@ -161,3 +180,5 @@ class Command(BaseCommand):
             self.stdout.write(f"{p}th percentile: {int(count):,} ratings")
 
         self.stdout.write(self.style.SUCCESS('\nImport completed successfully'))
+
+        
