@@ -14,6 +14,11 @@ class Command(BaseCommand):
         parser.add_argument('--ratings_csv_path', type=str, help='The path to the ratings CSV file', required=False)
 
     def handle(self, *args, **kwargs):
+
+        if Movie.objects.exists():
+            self.stdout.write(self.style.SUCCESS("Movies already exist in database, skipping import."))
+            return
+    
         # Get URLs from environment variables
         movies_url = os.getenv('MOVIES_CSV_URL')
         ratings_url = os.getenv('RATINGS_CSV_URL')
@@ -181,4 +186,3 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('\nImport completed successfully'))
 
-        
