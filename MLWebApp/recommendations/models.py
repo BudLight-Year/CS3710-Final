@@ -30,9 +30,7 @@ class Movie(models.Model):
     def rounded_mean(self, decimals=2):
         """Return the average rating rounded to the specified number of decimal places."""
         return round(self.mean, decimals)
-    
 
-    
 
 
 # Model to save recommendations into

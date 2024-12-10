@@ -26,8 +26,6 @@ GENRE_CHOICES = [
 
 
 # views.py
-
-
 class RecommendationEngineView(LoginRequiredMixin, View):
     # Class level attributes - loaded once per worker process
     model = None
